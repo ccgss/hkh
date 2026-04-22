@@ -1,1 +1,263 @@
-Hello!!
+import React, { useState, useEffect } from 'react';
+
+// --- 遊戲題庫 ---
+const QUESTIONS = [
+  { id: 1, text: "世界上最高的山是哪一座？", options: ["A. 玉山", "B. 富士山", "C. 聖母峰", "D. 阿里山"], answer: "C" },
+  { id: 2, text: "光速大約是每秒多少公里？", options: ["A. 3萬", "B. 30萬", "C. 300萬", "D. 3000萬"], answer: "B" },
+  { id: 3, text: "下列哪個程式語言通常用於網頁前端？", options: ["A. Python", "B. C++", "C. Java", "D. JavaScript"], answer: "D" },
+  { id: 4, text: "太陽系中體積最大的行星是？", options: ["A. 地球", "B. 木星", "C. 土星", "D. 火星"], answer: "B" },
+  { id: 5, text: "水的化學式是？", options: ["A. CO2", "B. O2", "C. H2O", "D. NaCl"], answer: "C" }
+];
+
+// --- 初始玩家資料 ---
+const INITIAL_PLAYERS = Array.from({ length: 10 }, (_, i) => ({
+  id: `p${i + 1}`,
+  name: `全球玩家 ${i + 1}`,
+  score: 0,
+  choice: null, // 'A', 'B', 'C', 'D'
+  status: 'waiting', // 'waiting', 'answered', 'correct', 'wrong'
+  position: 0, // 跑道位置 (0 - 100)
+  speed: Math.random() * 0.5 + 0.8 // 每個角色的基礎動畫速度微調
+}));
+
+export default function App() {
+  const [gameState, setGameState] = useState('idle'); // idle, questioning, revealing, running, finished
+  const [currentQIndex, setCurrentQIndex] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(10);
+  const [players, setPlayers] = useState(INITIAL_PLAYERS);
+
+  const currentQ = QUESTIONS[currentQIndex];
+
+  // --- 遊戲主迴圈 (Game Loop) ---
+  useEffect(() => {
+    let timer;
+    if (gameState === 'questioning') {
+      if (timeLeft > 0) {
+        timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+        
+        // 模擬 iPad 玩家隨機答題
+        if (Math.random() > 0.4) {
+          simulateRandomAnswer();
+        }
+      } else {
+        setGameState('revealing');
+      }
+    } else if (gameState === 'revealing') {
+      evaluateAnswers();
+      timer = setTimeout(() => setGameState('running'), 2500);
+    } else if (gameState === 'running') {
+      timer = setTimeout(() => {
+        if (currentQIndex < QUESTIONS.length - 1) {
+          setCurrentQIndex(currentQIndex + 1);
+          setTimeLeft(10);
+          resetPlayerRoundState();
+          setGameState('questioning');
+        } else {
+          setGameState('finished');
+        }
+      }, 3000);
+    }
+    return () => clearTimeout(timer);
+  }, [gameState, timeLeft]);
+
+  // --- 模擬系統 ---
+  const simulateRandomAnswer = () => {
+    setPlayers(prev => {
+      const newPlayers = [...prev];
+      const unanswered = newPlayers.filter(p => !p.choice);
+      if (unanswered.length > 0) {
+        const randomPlayer = unanswered[Math.floor(Math.random() * unanswered.length)];
+        const choices = ['A', 'B', 'C', 'D'];
+        // 模擬 60% 機率答對
+        const isSmart = Math.random() > 0.4;
+        randomPlayer.choice = isSmart ? currentQ.answer : choices[Math.floor(Math.random() * 4)];
+        randomPlayer.status = 'answered';
+      }
+      return newPlayers;
+    });
+  };
+
+  const evaluateAnswers = () => {
+    setPlayers(prev => prev.map(p => {
+      if (!p.choice) return { ...p, status: 'wrong' }; // 沒答算錯
+      const isCorrect = p.choice === currentQ.answer;
+      return {
+        ...p,
+        status: isCorrect ? 'correct' : 'wrong',
+        score: isCorrect ? p.score + 10 : p.score,
+        // 答對往前衝 20%，答錯留在原地
+        position: isCorrect ? Math.min(100, p.position + 20) : p.position 
+      };
+    }));
+  };
+
+  const resetPlayerRoundState = () => {
+    setPlayers(prev => prev.map(p => ({ ...p, choice: null, status: 'waiting' })));
+  };
+
+  const startGame = () => {
+    setPlayers(INITIAL_PLAYERS);
+    setCurrentQIndex(0);
+    setTimeLeft(10);
+    setGameState('questioning');
+  };
+
+  // --- UI 渲染 ---
+  return (
+    <div className="flex flex-col h-screen w-full bg-slate-900 text-white font-sans overflow-hidden">
+      
+      {/* SECTION 1: TOP (資訊欄) */}
+      <div className="h-16 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-6 shadow-md z-10">
+        <div className="flex items-center space-x-3">
+          <div className="bg-indigo-500 text-xs font-bold px-2 py-1 rounded">ROOM ID</div>
+          <span className="text-xl font-mono text-indigo-300 tracking-wider">GITHUB_QA</span>
+        </div>
+        
+        <div className="text-center">
+          {gameState === 'idle' && <span className="text-xl text-slate-400">等待開始遊戲...</span>}
+          {gameState === 'finished' && <span className="text-2xl text-yellow-400 font-bold">遊戲結束！</span>}
+          {['questioning', 'revealing', 'running'].includes(gameState) && (
+            <div className="flex items-center space-x-4">
+              <span className="text-lg text-slate-300">Round {currentQIndex + 1}/{QUESTIONS.length}</span>
+              <div className={`text-3xl font-black font-mono w-16 ${timeLeft <= 3 ? 'text-red-500 animate-pulse' : 'text-emerald-400'}`}>
+                00:{timeLeft.toString().padStart(2, '0')}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center space-x-2 text-slate-300 font-mono">
+          <span className="text-green-400 animate-pulse">●</span>
+          <span>10/10 Players</span>
+        </div>
+      </div>
+
+      {/* 遊戲主體區域 */}
+      <div className="flex-1 flex overflow-hidden">
+        
+        {/* SECTION 2: LEFT (玩家狀態面板) */}
+        <div className="w-[35%] bg-slate-800 border-r border-slate-700 flex flex-col">
+          <div className="p-4 bg-slate-750 border-b border-slate-600">
+            {gameState !== 'idle' && gameState !== 'finished' ? (
+              <div>
+                <h2 className="text-lg text-indigo-300 mb-2 font-bold">{currentQ.text}</h2>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {currentQ.options.map(opt => (
+                    <div key={opt} className={`p-2 rounded bg-slate-700 border border-slate-600 
+                      ${gameState === 'revealing' || gameState === 'running' ? (opt.startsWith(currentQ.answer) ? 'bg-emerald-600/30 border-emerald-500 text-emerald-300' : 'opacity-50') : ''}`}>
+                      {opt}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+               <h2 className="text-lg text-slate-400 font-bold">玩家排行榜</h2>
+            )}
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+            {players.sort((a,b) => b.score - a.score).map((player, idx) => (
+              <div key={player.id} className="flex items-center justify-between bg-slate-700/50 p-3 rounded-lg border border-slate-600/50">
+                <div className="flex items-center space-x-3">
+                  <div className="w-6 text-center text-slate-400 text-sm">{idx + 1}</div>
+                  <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-lg shadow-inner">
+                    🏃
+                  </div>
+                  <div className="font-medium">{player.name}</div>
+                </div>
+                
+                <div className="flex items-center space-x-4">
+                  {/* 答題狀態指示器 */}
+                  <div className="w-8 h-8 flex items-center justify-center font-bold text-lg">
+                    {player.status === 'waiting' && <span className="text-slate-500">...</span>}
+                    {player.status === 'answered' && <span className="text-blue-400">?</span>}
+                    {player.status === 'correct' && <span className="text-emerald-400">✔️</span>}
+                    {player.status === 'wrong' && <span className="text-red-400">❌</span>}
+                  </div>
+                  <div className="text-right w-16 font-mono text-indigo-300 font-bold">
+                    {player.score} pt
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* SECTION 3: RIGHT (跑酷競技場) */}
+        <div className="w-[65%] bg-slate-900 relative flex flex-col justify-center px-4 overflow-hidden shadow-inner">
+          {/* 背景格線裝飾 */}
+          <div className="absolute inset-0 opacity-10 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+          
+          <div className="relative z-10 w-full max-w-4xl mx-auto space-y-[2px]">
+             {/* 終點線 */}
+             <div className="absolute right-8 top-0 bottom-0 w-2 bg-yellow-400/80 border-x border-yellow-500 z-0"></div>
+
+            {players.map((player) => (
+              <div key={player.id} className="h-10 relative flex items-center group">
+                {/* 跑道線 */}
+                <div className="absolute left-0 right-0 h-[1px] bg-slate-700/50 top-1/2"></div>
+                
+                {/* 角色與特效 */}
+                <div 
+                  className="absolute transition-all duration-1000 ease-out flex items-center"
+                  style={{ 
+                    left: `${player.position * 0.85}%`, // 0.85 是為了預留右側空間 
+                    transitionDuration: gameState === 'running' ? '1.5s' : '0.2s'
+                  }}
+                >
+                  <div className={`text-3xl filter drop-shadow-md transform transition-transform 
+                    ${gameState === 'running' && player.status === 'correct' ? 'scale-125 -rotate-12' : ''}
+                    ${player.status === 'wrong' ? 'opacity-50 grayscale' : ''}`}>
+                    🏃‍♂️
+                  </div>
+                  
+                  {/* 衝刺殘影/尾速特效 (僅正確時顯示) */}
+                  {gameState === 'running' && player.status === 'correct' && (
+                     <div className="absolute right-full mr-2 w-12 h-2 bg-gradient-to-l from-emerald-400/50 to-transparent rounded-full blur-sm"></div>
+                  )}
+                  {/* 玩家名稱浮窗 */}
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                    {player.name}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 遊戲控制浮水印按鈕 (開發測試用) */}
+          {gameState === 'idle' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-20">
+               <button 
+                onClick={startGame}
+                className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white text-2xl font-bold rounded-xl shadow-[0_0_20px_rgba(79,70,229,0.5)] transition-all transform hover:scale-105 active:scale-95"
+               >
+                 START V1 SIMULATION
+               </button>
+            </div>
+          )}
+          {gameState === 'finished' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-20">
+               <div className="text-center">
+                 <h1 className="text-5xl font-black text-yellow-400 mb-8 drop-shadow-[0_0_15px_rgba(250,204,21,0.5)]">冠軍出爐！</h1>
+                 <button 
+                  onClick={startGame}
+                  className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white text-xl font-bold rounded-lg transition-all"
+                 >
+                   重新開始
+                 </button>
+               </div>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* CSS for custom scrollbar */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+      `}} />
+    </div>
+  );
+}
