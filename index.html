@@ -1,290 +1,275 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Q&A 跑酷遊戲 - 主機端</title>
-  
-  <!-- 引入 React & ReactDOM -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  
-  <!-- 引入 Babel 用於解析 JSX -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  
-  <!-- 引入 Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <style>
-    /* 自訂捲軸樣式 */
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
-  </style>
-</head>
-<body class="bg-slate-900 m-0 overflow-hidden">
-  <div id="root"></div>
-
-  <script type="text/babel">
-    const { useState, useEffect } = React;
-
-    // --- 遊戲題庫 ---
-    const QUESTIONS = [
-      { id: 1, text: "世界上最高的山是哪一座？", options: ["A. 玉山", "B. 富士山", "C. 聖母峰", "D. 阿里山"], answer: "C" },
-      { id: 2, text: "光速大約是每秒多少公里？", options: ["A. 3萬", "B. 30萬", "C. 300萬", "D. 3000萬"], answer: "B" },
-      { id: 3, text: "下列哪個程式語言通常用於網頁前端？", options: ["A. Python", "B. C++", "C. Java", "D. JavaScript"], answer: "D" },
-      { id: 4, text: "太陽系中體積最大的行星是？", options: ["A. 地球", "B. 木星", "C. 土星", "D. 火星"], answer: "B" },
-      { id: 5, text: "水的化學式是？", options: ["A. CO2", "B. O2", "C. H2O", "D. NaCl"], answer: "C" }
-    ];
-
-    // --- 初始玩家資料 ---
-    const INITIAL_PLAYERS = Array.from({ length: 10 }, (_, i) => ({
-      id: `p${i + 1}`,
-      name: `全球玩家 ${i + 1}`,
-      score: 0,
-      choice: null, // 'A', 'B', 'C', 'D'
-      status: 'waiting', // 'waiting', 'answered', 'correct', 'wrong'
-      position: 0, // 跑道位置 (0 - 100)
-      speed: Math.random() * 0.5 + 0.8 // 每個角色的基礎動畫速度微調
-    }));
-
-    function App() {
-      const [gameState, setGameState] = useState('idle'); // idle, questioning, revealing, running, finished
-      const [currentQIndex, setCurrentQIndex] = useState(0);
-      const [timeLeft, setTimeLeft] = useState(10);
-      const [players, setPlayers] = useState(INITIAL_PLAYERS);
-
-      const currentQ = QUESTIONS[currentQIndex];
-
-      // --- 遊戲主迴圈 (Game Loop) ---
-      useEffect(() => {
-        let timer;
-        if (gameState === 'questioning') {
-          if (timeLeft > 0) {
-            timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-            
-            // 模擬 iPad 玩家隨機答題
-            if (Math.random() > 0.4) {
-              simulateRandomAnswer();
-            }
-          } else {
-            setGameState('revealing');
-          }
-        } else if (gameState === 'revealing') {
-          evaluateAnswers();
-          timer = setTimeout(() => setGameState('running'), 2500);
-        } else if (gameState === 'running') {
-          timer = setTimeout(() => {
-            if (currentQIndex < QUESTIONS.length - 1) {
-              setCurrentQIndex(currentQIndex + 1);
-              setTimeLeft(10);
-              resetPlayerRoundState();
-              setGameState('questioning');
-            } else {
-              setGameState('finished');
-            }
-          }, 3000);
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Q&A Running Game Console</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --panel-color: #1e1e1e;
+            --accent-color: #00e676;
+            --text-color: #ffffff;
+            --track-gold: #ffd700;
         }
-        return () => clearTimeout(timer);
-      }, [gameState, timeLeft]);
 
-      // --- 模擬系統 ---
-      const simulateRandomAnswer = () => {
-        setPlayers(prev => {
-          const newPlayers = [...prev];
-          const unanswered = newPlayers.filter(p => !p.choice);
-          if (unanswered.length > 0) {
-            const randomPlayer = unanswered[Math.floor(Math.random() * unanswered.length)];
-            const choices = ['A', 'B', 'C', 'D'];
-            // 模擬 60% 機率答對
-            const isSmart = Math.random() > 0.4;
-            randomPlayer.choice = isSmart ? currentQ.answer : choices[Math.floor(Math.random() * 4)];
-            randomPlayer.status = 'answered';
-          }
-          return newPlayers;
-        });
-      };
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Arial, sans-serif;
+            display: flex; flex-direction: column;
+            height: 100vh; overflow: hidden;
+        }
 
-      const evaluateAnswers = () => {
-        setPlayers(prev => prev.map(p => {
-          if (!p.choice) return { ...p, status: 'wrong' }; // 沒答算錯
-          const isCorrect = p.choice === currentQ.answer;
-          return {
-            ...p,
-            status: isCorrect ? 'correct' : 'wrong',
-            score: isCorrect ? p.score + 10 : p.score,
-            // 答對往前衝 20%，答錯留在原地
-            position: isCorrect ? Math.min(100, p.position + 20) : p.position 
-          };
-        }));
-      };
+        /* Section 1: Top Information */
+        #game-header {
+            height: 12vh;
+            background: linear-gradient(180deg, #333, #111);
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0 30px;
+            border-bottom: 4px solid var(--accent-color);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+            z-index: 10;
+        }
 
-      const resetPlayerRoundState = () => {
-        setPlayers(prev => prev.map(p => ({ ...p, choice: null, status: 'waiting' })));
-      };
+        .header-item { text-align: center; }
+        .header-item h2 { margin: 0; font-size: 0.9rem; color: var(--accent-color); text-transform: uppercase; }
+        .header-item p { margin: 5px 0 0; font-family: 'Courier New', monospace; font-size: 1.6rem; font-weight: bold; }
 
-      const startGame = () => {
-        setPlayers(INITIAL_PLAYERS);
-        setCurrentQIndex(0);
-        setTimeLeft(10);
-        setGameState('questioning');
-      };
+        /* QR Code Container */
+        #qr-container {
+            display: flex; align-items: center;
+            background: white; padding: 8px; border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,230,118,0.5);
+        }
+        #qrcode img { width: 70px; height: 70px; }
 
-      // --- UI 渲染 ---
-      return (
-        <div className="flex flex-col h-screen w-full bg-slate-900 text-white font-sans overflow-hidden">
-          
-          {/* SECTION 1: TOP (資訊欄) */}
-          <div className="h-16 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-6 shadow-md z-10">
-            <div className="flex items-center space-x-3">
-              <div className="bg-indigo-500 text-xs font-bold px-2 py-1 rounded">ROOM ID</div>
-              <span className="text-xl font-mono text-indigo-300 tracking-wider">GITHUB_QA</span>
-            </div>
-            
-            <div className="text-center">
-              {gameState === 'idle' && <span className="text-xl text-slate-400">等待開始遊戲...</span>}
-              {gameState === 'finished' && <span className="text-2xl text-yellow-400 font-bold">遊戲結束！</span>}
-              {['questioning', 'revealing', 'running'].includes(gameState) && (
-                <div className="flex items-center space-x-4">
-                  <span className="text-lg text-slate-300">Round {currentQIndex + 1}/{QUESTIONS.length}</span>
-                  <div className={`text-3xl font-black font-mono w-16 ${timeLeft <= 3 ? 'text-red-500 animate-pulse' : 'text-emerald-400'}`}>
-                    00:{timeLeft.toString().padStart(2, '0')}
-                  </div>
-                </div>
-              )}
-            </div>
+        /* Main Layout */
+        #main-layout { display: flex; flex: 1; height: 88vh; }
 
-            <div className="flex items-center space-x-2 text-slate-300 font-mono">
-              <span className="text-green-400 animate-pulse">●</span>
-              <span>10/10 Players</span>
-            </div>
-          </div>
+        /* Section 2: Left Player List */
+        #player-section {
+            width: 380px;
+            background-color: var(--panel-color);
+            border-right: 2px solid #333;
+            display: flex; flex-direction: column;
+            padding: 15px; overflow-y: auto;
+        }
 
-          {/* 遊戲主體區域 */}
-          <div className="flex-1 flex overflow-hidden">
-            
-            {/* SECTION 2: LEFT (玩家狀態面板) */}
-            <div className="w-[35%] bg-slate-800 border-r border-slate-700 flex flex-col">
-              <div className="p-4 bg-slate-750 border-b border-slate-600">
-                {gameState !== 'idle' && gameState !== 'finished' ? (
-                  <div>
-                    <h2 className="text-lg text-indigo-300 mb-2 font-bold">{currentQ.text}</h2>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      {currentQ.options.map(opt => (
-                        <div key={opt} className={`p-2 rounded bg-slate-700 border border-slate-600 
-                          ${gameState === 'revealing' || gameState === 'running' ? (opt.startsWith(currentQ.answer) ? 'bg-emerald-600/30 border-emerald-500 text-emerald-300' : 'opacity-50') : ''}`}>
-                          {opt}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                   <h2 className="text-lg text-slate-400 font-bold">玩家排行榜</h2>
-                )}
-              </div>
-              
-              <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
-                {players.sort((a,b) => b.score - a.score).map((player, idx) => (
-                  <div key={player.id} className="flex items-center justify-between bg-slate-700/50 p-3 rounded-lg border border-slate-600/50">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-6 text-center text-slate-400 text-sm">{idx + 1}</div>
-                      <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-lg shadow-inner">
-                        🏃
-                      </div>
-                      <div className="font-medium">{player.name}</div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-4">
-                      {/* 答題狀態指示器 */}
-                      <div className="w-8 h-8 flex items-center justify-center font-bold text-lg">
-                        {player.status === 'waiting' && <span className="text-slate-500">...</span>}
-                        {player.status === 'answered' && <span className="text-blue-400">?</span>}
-                        {player.status === 'correct' && <span className="text-emerald-400">✔️</span>}
-                        {player.status === 'wrong' && <span className="text-red-400">❌</span>}
-                      </div>
-                      <div className="text-right w-16 font-mono text-indigo-300 font-bold">
-                        {player.score} pt
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+        .player-card {
+            background: #2a2a2a; border-radius: 10px;
+            padding: 12px; margin-bottom: 12px;
+            border-left: 6px solid #444;
+            transition: transform 0.2s;
+        }
+        .player-card.active { border-left-color: var(--accent-color); background: #333; transform: scale(1.02); }
+        .player-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .p-name { font-weight: bold; color: #fff; }
+        .p-mark { color: var(--track-gold); font-weight: bold; font-size: 1.2rem; }
+        .p-detail { font-size: 0.85rem; color: #bbb; line-height: 1.4; }
+        .p-ans { color: #00b0ff; font-weight: bold; font-size: 1rem; }
 
-            {/* SECTION 3: RIGHT (跑酷競技場) */}
-            <div className="w-[65%] bg-slate-900 relative flex flex-col justify-center px-4 overflow-hidden shadow-inner">
-              {/* 背景格線裝飾 */}
-              <div className="absolute inset-0 opacity-10 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
-              
-              <div className="relative z-10 w-full max-w-4xl mx-auto space-y-[2px]">
-                 {/* 終點線 */}
-                 <div className="absolute right-8 top-0 bottom-0 w-2 bg-yellow-400/80 border-x border-yellow-500 z-0"></div>
+        /* Section 3: Right Playground */
+        #playground-section {
+            flex: 1; position: relative;
+            background: radial-gradient(circle, #252525 0%, #050505 100%);
+            display: flex; justify-content: center; align-items: center;
+        }
+        canvas { filter: drop-shadow(0 0 10px rgba(0,0,0,0.5)); }
 
-                {players.map((player) => (
-                  <div key={player.id} className="h-10 relative flex items-center group">
-                    {/* 跑道線 */}
-                    <div className="absolute left-0 right-0 h-[1px] bg-slate-700/50 top-1/2"></div>
-                    
-                    {/* 角色與特效 */}
-                    <div 
-                      className="absolute transition-all duration-1000 ease-out flex items-center"
-                      style={{ 
-                        left: `${player.position * 0.85}%`, // 0.85 是為了預留右側空間 
-                        transitionDuration: gameState === 'running' ? '1.5s' : '0.2s'
-                      }}
-                    >
-                      <div className={`text-3xl filter drop-shadow-md transform transition-transform 
-                        ${gameState === 'running' && player.status === 'correct' ? 'scale-125 -rotate-12' : ''}
-                        ${player.status === 'wrong' ? 'opacity-50 grayscale' : ''}`}>
-                        🏃‍♂️
-                      </div>
-                      
-                      {/* 衝刺殘影/尾速特效 (僅正確時顯示) */}
-                      {gameState === 'running' && player.status === 'correct' && (
-                         <div className="absolute right-full mr-2 w-12 h-2 bg-gradient-to-l from-emerald-400/50 to-transparent rounded-full blur-sm"></div>
-                      )}
-                      {/* 玩家名稱浮窗 */}
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-                        {player.name}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+        .ui-label {
+            position: absolute; bottom: 15px; right: 20px;
+            color: rgba(255,255,255,0.2); font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
 
-              {/* 遊戲控制浮水印按鈕 (開發測試用) */}
-              {gameState === 'idle' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-20">
-                   <button 
-                    onClick={startGame}
-                    className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white text-2xl font-bold rounded-xl shadow-[0_0_20px_rgba(79,70,229,0.5)] transition-all transform hover:scale-105 active:scale-95"
-                   >
-                     START V1 SIMULATION
-                   </button>
-                </div>
-              )}
-              {gameState === 'finished' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-20">
-                   <div className="text-center">
-                     <h1 className="text-5xl font-black text-yellow-400 mb-8 drop-shadow-[0_0_15px_rgba(250,204,21,0.5)]">冠軍出爐！</h1>
-                     <button 
-                      onClick={startGame}
-                      className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white text-xl font-bold rounded-lg transition-all"
-                     >
-                       重新開始
-                     </button>
-                   </div>
-                </div>
-              )}
-            </div>
-          </div>
+    <header id="game-header">
+        <div class="header-item">
+            <h2>Room Status</h2>
+            <p id="status">ONLINE</p>
         </div>
-      );
-    }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
+        <div id="qr-container">
+            <div id="qrcode"></div>
+            <div style="color: #000; margin-left: 12px; text-align: left;">
+                <div style="font-weight: bold; font-size: 0.7rem;">MOBILE JOIN</div>
+                <div id="join-link" style="font-size: 0.55rem; color: #555; max-width: 120px; word-break: break-all;">Loading...</div>
+            </div>
+        </div>
+
+        <div class="header-item">
+            <h2>Current Question</h2>
+            <p id="q-number">Q 01 / 10</p>
+        </div>
+
+        <div class="header-item">
+            <h2>Time Left</h2>
+            <p id="timer" style="color: #ff5252;">00:30</p>
+        </div>
+    </header>
+
+    <div id="main-layout">
+        <aside id="player-section">
+            <h3 style="margin: 0 0 15px 0; color: var(--accent-color);">Leaderboard (Max 10)</h3>
+            <div id="player-list">
+                </div>
+        </aside>
+
+        <main id="playground-section">
+            <canvas id="trackCanvas"></canvas>
+            <div class="ui-label">Network Q&A Engine v1.0 | Capsule Layout</div>
+        </main>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('trackCanvas');
+        const ctx = canvas.getContext('2d');
+        const playerListContainer = document.getElementById('player-list');
+        const bc = new BroadcastChannel('game_channel');
+
+        // 核心數據結構
+        let players = Array.from({ length: 10 }, (_, i) => ({
+            id: i + 1,
+            name: `Player ${String.fromCharCode(65 + i)}`,
+            mark: 0,
+            question: "Waiting for next question...",
+            answer: "-",
+            lane: i,
+            progress: 0,
+            color: `hsl(${i * 36}, 80%, 60%)`
+        }));
+
+        function init() {
+            window.addEventListener('resize', resize);
+            resize();
+            generateQR();
+            renderPlayerList();
+            
+            // 監聽來自 iPad (player.html) 的訊號
+            bc.onmessage = (ev) => {
+                if (ev.data.type === 'PLAYER_UPDATE') {
+                    handlePlayerInput(ev.data.data);
+                }
+            };
+
+            animate();
+        }
+
+        function generateQR() {
+            const currentURL = window.location.href;
+            const joinURL = currentURL.replace('index.html', '') + "player.html";
+            document.getElementById('join-link').innerText = joinURL;
+            new QRCode(document.getElementById("qrcode"), {
+                text: joinURL,
+                width: 70, height: 70
+            });
+        }
+
+        function handlePlayerInput(data) {
+            // 模擬：尋找對應玩家並更新
+            const p = players.find(p => p.name.includes(data.name) || p.id == 1); // 測試用
+            if (p) {
+                p.answer = data.answer;
+                p.mark += 10; // 每按一次加10分
+                p.question = "Question 1: Processed!";
+                renderPlayerList();
+            }
+        }
+
+        function resize() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+
+        function renderPlayerList() {
+            // 按分數排序顯示
+            const sorted = [...players].sort((a,b) => b.mark - a.mark);
+            playerListContainer.innerHTML = sorted.map(p => `
+                <div class="player-card ${p.mark > 0 ? 'active' : ''}">
+                    <div class="player-header">
+                        <span class="p-name">LANE ${p.lane + 1}: ${p.name}</span>
+                        <span class="p-mark">${p.mark}</span>
+                    </div>
+                    <div class="p-detail">
+                        Q: ${p.question}<br>
+                        Selection: <span class="p-ans">${p.answer}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getCapsulePos(cx, cy, sw, r, progress) {
+            const arc = Math.PI * r;
+            const total = (sw * 2) + (arc * 2);
+            let d = (progress % 1) * total;
+
+            if (d < sw) return { x: cx - sw/2 + d, y: cy - r }; // Top Straight
+            d -= sw;
+            if (d < arc) { // Right Arc
+                let a = -Math.PI/2 + (d/arc) * Math.PI;
+                return { x: cx + sw/2 + Math.cos(a)*r, y: cy + Math.sin(a)*r };
+            }
+            d -= arc;
+            if (d < sw) return { x: cx + sw/2 - d, y: cy + r }; // Bottom Straight
+            d -= sw;
+            // Left Arc
+            let a = Math.PI/2 + (d/arc) * Math.PI;
+            return { x: cx - sw/2 + Math.cos(a)*r, y: cy + Math.sin(a)*r };
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const sw = canvas.width * 0.4; // Straight width
+            const baseR = 50;
+            const gap = 22;
+
+            // Draw 10 Lanes
+            for (let i = 0; i < 10; i++) {
+                const r = baseR + (i * gap);
+                ctx.beginPath();
+                ctx.strokeStyle = `rgba(255, 215, 0, ${0.1 + (i*0.05)})`;
+                ctx.lineWidth = 1;
+                ctx.arc(cx + sw/2, cy, r, -Math.PI/2, Math.PI/2);
+                ctx.lineTo(cx - sw/2, cy + r);
+                ctx.arc(cx - sw/2, cy, r, Math.PI/2, 3*Math.PI/2);
+                ctx.closePath();
+                ctx.stroke();
+            }
+
+            // Draw Players
+            players.forEach((p, i) => {
+                const r = baseR + (i * gap);
+                // 目標進度根據分數計算，這裡做平滑動畫
+                let targetProgress = p.mark / 100; 
+                if (p.progress < targetProgress) p.progress += 0.005;
+
+                const pos = getCapsulePos(cx, cy, sw, r, p.progress);
+
+                // Glow Effect
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = p.color;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 10, 0, Math.PI*2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // Label
+                ctx.fillStyle = "white";
+                ctx.font = "bold 12px Arial";
+                ctx.fillText(p.name.charAt(p.name.length-1), pos.x - 4, pos.y + 4);
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        init();
+    </script>
 </body>
 </html>
