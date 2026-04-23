@@ -3,57 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>全球即時競速遊戲 - 最終穩定版</title>
+    <title>同步競速系統</title>
     <script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        :root { --bg: #121212; --accent: #00e676; --gold: #ffd700; --panel: #1e1e1e; }
-        body { margin: 0; background: var(--bg); color: white; font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; overflow: hidden; -webkit-user-select: none; user-select: none; }
-        
+        :root { --bg: #121212; --accent: #00e676; --panel: #1e1e1e; }
+        body { margin: 0; background: var(--bg); color: white; font-family: sans-serif; overflow: hidden; user-select: none; }
         .page { display: none; height: 100vh; width: 100vw; flex-direction: column; }
         .active-page { display: flex; }
-
-        /* --- 主機端 (Console) 佈局 --- */
+        
+        /* Console UI */
         #game-header { height: 12vh; background: #222; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; border-bottom: 4px solid var(--accent); }
         #main-layout { display: flex; flex: 1; }
         #player-section { width: 300px; background: var(--panel); border-right: 1px solid #333; padding: 10px; overflow-y: auto; }
         #playground { flex: 1; background: #000; position: relative; }
-        
-        .player-card { background: #2a2a2a; padding: 12px; margin-bottom: 10px; border-radius: 8px; border-left: 5px solid #444; transition: 0.3s; opacity: 0.3; }
-        .player-card.online { opacity: 1; border-left-color: var(--accent); }
-        
-        .dot-row { display: flex; gap: 5px; margin-top: 10px; }
-        .dot { flex: 1; height: 30px; background: #1a1a1a; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #444; border: 1px solid #333; }
-        .dot.on-1 { background: #ff5252; color: white; box-shadow: 0 0 10px #ff5252; }
-        .dot.on-2 { background: #448aff; color: white; box-shadow: 0 0 10px #448aff; }
-        .dot.on-3 { background: #ffab40; color: white; box-shadow: 0 0 10px #ffab40; }
-        .dot.on-4 { background: #69f0ae; color: white; box-shadow: 0 0 10px #69f0ae; }
+        .player-card { background: #2a2a2a; padding: 10px; margin-bottom: 8px; border-radius: 6px; border-left: 5px solid #444; transition: 0.2s; }
+        .player-card.online { border-left-color: var(--accent); }
+        .dot-row { display: flex; gap: 4px; margin-top: 5px; }
+        .dot { flex: 1; height: 25px; background: #222; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 10px; border: 1px solid #333; }
+        .on-1 { background: #ff5252; color: #fff; } .on-2 { background: #448aff; color: #fff; }
+        .on-3 { background: #ffab40; color: #fff; } .on-4 { background: #69f0ae; color: #fff; }
 
-        /* --- iPad 玩家大廳 --- */
-        #lobby-view { align-items: center; justify-content: center; padding: 20px; text-align: center; }
-        .lane-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 500px; }
-        .lane-btn { padding: 25px; background: #333; border: 2px solid var(--accent); color: white; border-radius: 15px; font-size: 1.5rem; font-weight: bold; }
-        .lane-btn:active { background: var(--accent); color: black; }
-
-        /* --- iPad 控制器 --- */
-        .grid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; }
-        .mc-btn { border: none; border-radius: 30px; font-size: 5rem; font-weight: bold; color: white; box-shadow: 0 10px 0 #000; transition: 0.1s; }
-        .mc-btn:active { transform: translateY(8px); box-shadow: none; filter: brightness(1.2); }
+        /* Player Controls */
+        .grid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 15px; }
+        .mc-btn { border: none; border-radius: 20px; font-size: 4rem; font-weight: bold; color: white; box-shadow: 0 6px 0 #000; }
+        .mc-btn:active { transform: translateY(4px); box-shadow: none; }
         .btn-1 { background: #ff5252; } .btn-2 { background: #448aff; } .btn-3 { background: #ffab40; } .btn-4 { background: #69f0ae; }
-        
-        #debug-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.9); font-size: 12px; padding: 5px; color: #00e676; z-index: 100; text-align: center; pointer-events: none; }
+        #status-bar { position: fixed; bottom: 0; width: 100%; background: rgba(0,0,0,0.8); font-size: 10px; padding: 4px; color: var(--accent); text-align: center; }
     </style>
 </head>
 <body>
 
     <div id="console-view" class="page">
         <header id="game-header">
-            <div id="qrcode" style="background:white; padding:5px; border-radius:5px;"></div>
+            <div id="qrcode" style="background:white; padding:5px;"></div>
             <div style="text-align:center">
-                <h2 style="margin:0; color:var(--accent)">全球即時競速 - 遊戲主機</h2>
-                <div id="c-status" style="font-size:14px; color:red">伺服器斷線中</div>
+                <h3 id="console-title" style="margin:0; color:var(--accent)">載入中...</h3>
+                <span id="conn-info" style="font-size:12px; color:orange">正在連線至雲端...</span>
             </div>
-            <div id="timer" style="font-size:2rem; font-family: monospace;">00:30</div>
+            <div id="timer" style="font-size:1.5rem">00:30</div>
         </header>
         <div id="main-layout">
             <aside id="player-section"><div id="player-list"></div></aside>
@@ -61,16 +49,13 @@
         </div>
     </div>
 
-    <div id="lobby-view" class="page">
-        <h1 style="color:var(--accent); margin-bottom: 30px;">請選擇您的跑道</h1>
-        <div class="lane-grid" id="lane-btns"></div>
+    <div id="lobby-view" class="page" style="align-items:center; justify-content:center;">
+        <h2>選擇您的跑道</h2>
+        <div id="lane-btns" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; width:80%;"></div>
     </div>
 
     <div id="player-view" class="page">
-        <div style="padding:20px; text-align:center; background:#222; border-bottom:4px solid var(--accent)">
-            <h2 id="p-header" style="margin:0">跑道載入中...</h2>
-            <p style="margin:10px 0 0; color:#888;">按住按鈕進行移動與答題</p>
-        </div>
+        <div id="p-header" style="padding:15px; text-align:center; background:#222; font-weight:bold;">跑道載入中</div>
         <div class="grid">
             <button class="mc-btn btn-1" ontouchstart="send(1)" ontouchend="send(0)">A</button>
             <button class="mc-btn btn-2" ontouchstart="send(2)" ontouchend="send(0)">B</button>
@@ -79,58 +64,52 @@
         </div>
     </div>
 
-    <div id="debug-bar">系統狀態: 初始化中...</div>
+    <div id="status-bar">系統就緒</div>
 
 <script>
-    const debug = (msg) => { document.getElementById('debug-bar').innerText = "系統狀態: " + msg; console.log(msg); };
-
-    // --- 核心連線設定 ---
-    const ROOM_ID = "mc_runner_888"; // 如果有多人同時測試，請修改此 ID
+    const ROOM_ID = "mc_runner_888";
     const BROKER = "wss://broker.emqx.io:8084/mqtt";
     const client = mqtt.connect(BROKER);
 
-    let players = Array.from({length: 10}, (_, i) => ({
-        id: i+1, online: false, mark: 0, btn: 0, lastSeen: 0, color: `hsl(${i*36}, 85%, 60%)`
-    }));
-
     const urlParams = new URLSearchParams(window.location.search);
-    const role = urlParams.get('role');
+    const role = urlParams.get('role'); // main, player, or null (sub)
     let myLane = null;
 
-    // --- MQTT 連線事件 ---
+    let players = Array.from({length: 10}, (_, i) => ({
+        id: i+1, online: false, mark: 0, btn: 0, lastSeen: 0, color: `hsl(${i*36}, 80%, 60%)`
+    }));
+
     client.on('connect', () => {
-        debug("雲端伺服器已連線 ✅");
-        if (!role) { 
-            document.getElementById('c-status').innerText = "伺服器已連線";
-            document.getElementById('c-status').style.color = "#00e676";
-            client.subscribe(`game/${ROOM_ID}/+`);
-            initConsole();
+        document.getElementById('conn-info').innerText = "雲端連線成功 ✅";
+        document.getElementById('conn-info').style.color = "#00e676";
+
+        if (role === 'main') {
+            document.getElementById('console-title').innerText = "主控台 (決策者)";
+            client.subscribe(`game/${ROOM_ID}/player/+`);
+            setInterval(syncToSub, 100); // 每 0.1 秒廣播一次狀態
+        } else if (role === 'player') {
+            // iPad 不需要訂閱
+        } else {
+            document.getElementById('console-title').innerText = "副控台 (影子)";
+            client.subscribe(`game/${ROOM_ID}/state`);
         }
     });
 
-    client.on('error', (err) => debug("連線錯誤: " + err));
-
-    // --- 路由切換邏輯 ---
+    // 路由邏輯
     if (role === 'player') {
         showPage('lobby-view');
         const grid = document.getElementById('lane-btns');
         for(let i=1; i<=10; i++) {
-            let b = document.createElement('button');
-            b.className = 'lane-btn'; b.innerText = "第 " + i + " 跑道";
-            b.onclick = () => {
-                myLane = i;
-                document.getElementById('p-header').innerText = "您的位置：第 " + i + " 跑道";
-                showPage('player-view');
-                setInterval(() => send(0), 1000); // 傳送心跳包
-                debug("已加入跑道 " + i);
-            };
+            const b = document.createElement('button');
+            b.style.padding = "20px"; b.innerText = "LANE " + i;
+            b.onclick = () => { myLane = i; document.getElementById('p-header').innerText = "LANE " + i; showPage('player-view'); setInterval(()=>send(0),1000); };
             grid.appendChild(b);
         }
     } else {
         showPage('console-view');
-        // 自動生成 QR Code，確保指向當前網址
         const qrUrl = window.location.origin + window.location.pathname + "?role=player";
-        new QRCode(document.getElementById("qrcode"), { text: qrUrl, width: 70, height: 70 });
+        new QRCode(document.getElementById("qrcode"), { text: qrUrl, width: 60, height: 60 });
+        initCanvas();
     }
 
     function showPage(id) {
@@ -138,37 +117,59 @@
         document.getElementById(id).classList.add('active-page');
     }
 
-    // --- 玩家發送訊號 ---
+    // --- 通訊邏輯 ---
+
+    // 1. 玩家發送
     function send(code) {
-        if (!myLane || !client.connected) return;
-        const topic = `game/${ROOM_ID}/${myLane}`;
-        client.publish(topic, JSON.stringify({ btn: code, ts: Date.now() }));
+        if (!myLane) return;
+        client.publish(`game/${ROOM_ID}/player/${myLane}`, JSON.stringify({ btn: code }));
     }
 
-    // --- 主機接收訊號 ---
+    // 2. 主控台同步給副控台
+    function syncToSub() {
+        if (role !== 'main') return;
+        const state = players.map(p => ({ id: p.id, online: p.online, mark: p.mark, btn: p.btn }));
+        client.publish(`game/${ROOM_ID}/state`, JSON.stringify(state));
+    }
+
+    // 3. 接收處理
     client.on('message', (topic, msg) => {
-        const laneId = parseInt(topic.split('/').pop());
-        try {
-            const data = JSON.parse(msg.toString());
-            const p = players[laneId - 1];
-            if (p) {
-                p.online = true;
-                p.btn = data.btn;
-                p.lastSeen = Date.now();
-                if (data.btn > 0) p.mark += 0.5; // 按住時前進速度
+        const data = JSON.parse(msg.toString());
+        
+        if (topic.endsWith('/state')) {
+            // 副控台接收主控台的廣播
+            if (!role) { 
+                data.forEach((pState, i) => {
+                    players[i].online = pState.online;
+                    players[i].mark = pState.mark;
+                    players[i].btn = pState.btn;
+                });
                 updateUI();
             }
-        } catch(e) { console.error("解析失敗", e); }
+        } else {
+            // 主控台接收玩家的按鈕
+            if (role === 'main') {
+                const laneId = parseInt(topic.split('/').pop());
+                const p = players[laneId - 1];
+                if (p) {
+                    p.online = true;
+                    p.btn = data.btn;
+                    p.lastSeen = Date.now();
+                    if (data.btn > 0) p.mark += 0.5;
+                    updateUI();
+                }
+            }
+        }
     });
 
+    // --- 介面與動畫 ---
     function updateUI() {
-        const container = document.getElementById('player-list');
-        if (!container) return;
-        container.innerHTML = players.map(p => `
+        const list = document.getElementById('player-list');
+        if (!list) return;
+        list.innerHTML = players.map(p => `
             <div class="player-card ${p.online ? 'online' : ''}">
-                <div style="display:flex; justify-content:space-between; font-weight:bold">
-                    <span>跑道 ${p.id}</span> 
-                    <span style="color:var(--gold)">${Math.floor(p.mark)}m</span>
+                <div style="display:flex; justify-content:space-between; font-size:12px">
+                    <b>LANE ${p.id}</b> <span>${Math.floor(p.mark)}m</span>
                 </div>
                 <div class="dot-row">
                     <div class="dot ${p.btn==1?'on-1':''}">A</div>
@@ -180,55 +181,41 @@
         `).join('');
     }
 
-    // --- 賽道繪製動畫 ---
-    function initConsole() {
+    function initCanvas() {
         const canvas = document.getElementById('trackCanvas');
         const ctx = canvas.getContext('2d');
-        function resize() { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; }
+        const resize = () => { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; };
         window.onresize = resize; resize();
 
         function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const cx = canvas.width/2, cy = canvas.height/2, sw = canvas.width*0.35, baseR = 50, gap = 20;
-
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            const cx = canvas.width/2, cy = canvas.height/2, sw = canvas.width*0.3;
             players.forEach((p, i) => {
-                const r = baseR + (i*gap);
-                // 繪製跑道
-                ctx.strokeStyle = p.online ? "rgba(0,230,118,0.2)" : "#222";
-                ctx.lineWidth = 1;
+                const r = 50 + (i*20);
+                ctx.strokeStyle = p.online ? "rgba(0,230,118,0.3)" : "#222";
                 ctx.beginPath();
                 ctx.arc(cx+sw/2, cy, r, -Math.PI/2, Math.PI/2);
                 ctx.lineTo(cx-sw/2, cy+r);
                 ctx.arc(cx-sw/2, cy, r, Math.PI/2, 3*Math.PI/2);
                 ctx.closePath(); ctx.stroke();
-
-                // 繪製玩家角色
                 if (p.online) {
-                    const pos = getPos(cx, cy, sw, r, p.mark * 0.005);
-                    ctx.shadowBlur = p.btn > 0 ? 15 : 0;
-                    ctx.shadowColor = p.color;
+                    const pos = getPos(cx,cy,sw,r, p.mark * 0.005);
                     ctx.fillStyle = p.color;
-                    ctx.beginPath(); ctx.arc(pos.x, pos.y, 10, 0, Math.PI*2); ctx.fill();
-                    ctx.shadowBlur = 0;
-                    
-                    ctx.fillStyle = "black"; ctx.font = "bold 10px Arial";
-                    ctx.fillText(p.id, pos.x - 3, pos.y + 4);
+                    ctx.beginPath(); ctx.arc(pos.x, pos.y, 8, 0, 7); ctx.fill();
                 }
             });
             requestAnimationFrame(draw);
         }
         draw();
-        updateUI();
-
-        // 離線偵測：如果 4 秒沒收到訊息則標記為離線
-        setInterval(() => {
-            const now = Date.now();
-            let changed = false;
-            players.forEach(p => {
-                if(p.online && now - p.lastSeen > 4000) { p.online = false; changed = true; }
-            });
-            if(changed) updateUI();
-        }, 2000);
+        
+        // 主控台檢查離線
+        if (role === 'main') {
+            setInterval(() => {
+                const now = Date.now();
+                players.forEach(p => { if(p.online && now - p.lastSeen > 4000) p.online = false; });
+                updateUI();
+            }, 2000);
+        }
     }
 
     function getPos(cx, cy, sw, r, prog) {
