@@ -95,12 +95,13 @@
         <div id="overlay">
             <div>
                 <div id="overlay-msg"></div>
-                <button onclick="clearTeam()" style="padding: 15px 30px; background: #333; color: #fff; border: 2px solid #555; border-radius: 8px; font-size: 1.2rem; cursor: pointer; font-weight: bold;">退出隊伍 / Exit Team</button>
+                <button onclick="clearTeam()" style="padding: 15px 30px; background: #333; color: #fff; border: 2px solid #555; border-radius: 8px; font-size: 1.2rem; cursor: pointer; font-weight: bold;">重新選隊 / Re-select Team</button>
             </div>
         </div>
-        <div class="top-bar" style="height: 60px;">
-            <div id="ui-team" style="font-size:1.6rem; font-weight:bold; color:var(--blue);">TEAM --</div>
-            <div id="ui-score" style="font-size:1.6rem; font-weight:bold;">SCORE: 0</div>
+        <div class="top-bar" style="height: 60px; padding: 0 20px;">
+            <div id="ui-team" style="font-size:1.4rem; font-weight:bold; color:var(--blue);">TEAM --</div>
+            <div id="ui-score" style="font-size:1.4rem; font-weight:bold;">SCORE: 0</div>
+            <button onclick="clearTeam()" style="padding: 8px 15px; background: #ff4757; color: #fff; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; font-weight: bold;">EXIT</button>
         </div>
         <div class="timer-wrap"><div id="timer-bar"></div></div>
         <div class="q-area"><div id="ui-q" style="font-size:2.2rem; font-weight:bold;">Wait for start...</div></div>
@@ -522,6 +523,7 @@
         localStorage.setItem('gp_reconnect_id', id);
         client.publish(`game/${ROOM_ID}/join`, JSON.stringify({tId: id}));
         showPage('player-view'); 
+        handlePlayerLogic(); // 立即渲染狀態，避免等待 MQTT 延遲
     }
 
     function clearTeam() {
@@ -568,6 +570,7 @@
             if (saved) { 
                 myTeamId = parseInt(saved); 
                 showPage('player-view'); 
+                handlePlayerLogic(); // 立即渲染狀態，避免等待 MQTT 延遲
             } else {
                 showPage('lobby-view');
                 renderTeamButtons(); 
