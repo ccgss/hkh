@@ -3,293 +3,273 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEON RACER - Professional Sync</title>
+    <title>Team Arena - Fixed Sync</title>
     <script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        :root { --bg: #000; --blue: #00ffff; --hud-bg: rgba(20, 20, 20, 0.9); }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        :root { --bg: #000; --blue: #00ffff; --gold: #ffd700; --red: #ff3300; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: white; font-family: sans-serif; overflow: hidden; }
         
-        /* Pages */
+        #mode-selector { 
+            position: fixed; top: 0; left: 0; right: 0; height: 50px; background: #1a1a1a; 
+            display: none; justify-content: center; align-items: center; gap: 20px; z-index: 9999; 
+            border-bottom: 1px solid #444;
+        }
+        .mode-btn { padding: 5px 20px; border: 2px solid white; background: #444; color: white; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .mode-btn.active { background: var(--blue); color: #000; border-color: #000; }
+
         .page { display: none; width: 100vw; height: 100vh; flex-direction: column; }
+        #console-view.has-selector { padding-top: 50px; }
         .active-page { display: flex; }
 
-        /* Main Header */
-        #game-header { 
-            height: 140px; background: #111; 
-            display: flex; justify-content: space-between; align-items: center; 
-            padding: 0 30px; border-bottom: 4px solid var(--blue); box-sizing: border-box;
-        }
-
-        #qrcode-container { background: white; padding: 10px; border-radius: 8px; display: block; }
-
-        #main-layout { position: relative; flex: 1; width: 100%; display: flex; overflow: hidden; background: #000; }
-
-        /* HUD Sidebar */
-        #player-section { 
-            position: absolute; left: 15px; top: 15px; bottom: 15px;
-            width: 200px; background: var(--hud-bg); 
-            border: 1px solid var(--blue); border-radius: 12px; padding: 12px; 
-            z-index: 10; overflow-y: auto;
-        }
-
-        #playground { flex: 1; height: 100%; position: relative; }
+        #game-header { height: 100px; background: #111; display: flex; justify-content: space-between; align-items: center; padding: 0 30px; border-bottom: 4px solid var(--blue); }
+        
+        #main-layout { position: relative; flex: 1; width: 100%; display: flex; }
+        #player-section { width: 240px; background: rgba(25,25,25,0.95); padding: 15px; border-right: 2px solid #333; overflow-y: auto; z-index: 20; }
+        #playground { flex: 1; background: #000; }
         canvas { display: block; width: 100%; height: 100%; }
 
-        /* Player Cards */
-        .player-card { 
-            background: rgba(40,40,40,0.8); padding: 10px; margin-bottom: 8px; 
-            border-radius: 6px; border-left: 5px solid #333; font-size: 13px;
-        }
-        .online { border-left-color: var(--blue); box-shadow: 0 0 10px rgba(0,255,255,0.2); }
+        /* Team Cards in Sidebar */
+        .team-card { background: #222; padding: 12px; margin-bottom: 12px; border-radius: 8px; border-left: 10px solid #444; transition: all 0.3s; }
+        .team-active { border-left-color: var(--blue); background: rgba(0,255,255,0.05); }
+        .team-full { border-left-color: #00ff00; background: rgba(0,255,0,0.1); }
 
-        /* iPad Buttons */
-        .grid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; }
-        .mc-btn { border: none; border-radius: 20px; font-size: 4rem; font-weight: bold; color: white; cursor: pointer; }
-        .on-1 { background: #ff5252; } .on-2 { background: #448aff; } .on-3 { background: #ffab40; } .on-4 { background: #69f0ae; }
+        /* iPad Grid */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 20px; width: 90%; max-width: 600px; }
+        .team-select-btn { padding: 30px; font-size: 1.5rem; font-weight: bold; border-radius: 15px; border: 2px solid #444; background: #222; color: white; }
+        .team-select-btn:disabled { opacity: 0.2; }
+        .team-select-btn.joined { background: var(--blue); color: #000; border-color: white; }
     </style>
 </head>
-<body>
+<body class="mode-neon">
+
+    <div id="mode-selector">
+        <button id="btn-neon" class="mode-btn active" onclick="switchMode('neon')">NEON DASH</button>
+        <button id="btn-pnb" class="mode-btn" onclick="switchMode('pnb')">BUN HILL</button>
+    </div>
 
     <div id="console-view" class="page">
         <header id="game-header">
-            <div id="qrcode-container"><div id="qrcode"></div></div>
+            <div id="qrcode"></div>
             <div style="text-align:center">
-                <h1 id="console-title" style="margin:0; color:var(--blue); font-size: 2.8rem; text-shadow: 0 0 15px var(--blue);">SYSTEM LOADING</h1>
-                <div id="conn-info" style="font-size:16px; color:#666; margin-top:5px;">CONNECTING TO BROKER...</div>
+                <h1 id="game-title" style="margin:0">NEON DASH</h1>
+                <small id="conn-info" style="color:var(--blue)">INITIALIZING...</small>
             </div>
-            <div id="timer" style="font-size:3.5rem; font-family: monospace; color:var(--blue);">00:30</div>
+            <div id="timer" style="font-size:1.8rem; font-weight:bold;">TEAM RACE 🏁</div>
         </header>
         <div id="main-layout">
-            <aside id="player-section"><div id="player-list"></div></aside>
+            <aside id="player-section">
+                <h3 style="margin-top:0; border-bottom:1px solid #444">TEAM STATUS</h3>
+                <div id="player-list">
+                    </div>
+            </aside>
             <main id="playground"><canvas id="trackCanvas"></canvas></main>
         </div>
     </div>
 
     <div id="lobby-view" class="page" style="align-items:center; justify-content:center; background:#050505;">
-        <h1 style="color:var(--blue); margin-bottom:30px;">JOIN NEON RACER</h1>
-        <div id="lane-btns" style="display:grid; grid-template-columns:1fr 1fr; gap:15px; width:90%; max-width:500px;"></div>
+        <h1 style="color:var(--blue)">SELECT TEAM (MAX 2)</h1>
+        <div id="team-grid" class="grid"></div>
     </div>
 
     <div id="player-view" class="page">
-        <div id="p-header" style="padding:25px; text-align:center; background:#111; font-weight:bold; border-bottom:4px solid var(--blue); font-size:1.8rem;">LANE X</div>
-        <div class="grid">
-            <button class="mc-btn on-1" ontouchstart="send(1)" ontouchend="send(0)">A</button>
-            <button class="mc-btn on-2" ontouchstart="send(2)" ontouchend="send(0)">B</button>
-            <button class="mc-btn on-3" ontouchstart="send(3)" ontouchend="send(0)">C</button>
-            <button class="mc-btn on-4" ontouchstart="send(4)" ontouchend="send(0)">D</button>
+        <div id="p-header" style="padding:25px; text-align:center; font-size:2rem; background:#111; border-bottom:4px solid var(--blue);">TEAM X</div>
+        <div class="grid" style="flex:1; margin: auto;">
+            <button onclick="send(1)" style="background:#ff5252; height:200px; font-size:4rem; border-radius:30px; border:none; color:white;">A</button>
+            <button onclick="send(2)" style="background:#448aff; height:200px; font-size:4rem; border-radius:30px; border:none; color:white;">B</button>
         </div>
     </div>
 
 <script>
-    // --- Configuration ---
-    const ROOM_ID = "NEON_ARENA_2026_FINAL"; // Unique ID
+    const ROOM_ID = "TEAM_ARENA_SYNC_2026";
     const BROKER = "wss://broker.emqx.io:8084/mqtt";
     const client = mqtt.connect(BROKER);
-
     const urlParams = new URLSearchParams(window.location.search);
-    const role = urlParams.get('role'); // main, player, or null(sub)
-    let myLane = null;
-
-    let players = Array.from({length: 10}, (_, i) => ({
-        id: i+1, online: false, mark: 0, btn: 0, lastSeen: 0, color: `hsl(${i*36}, 100%, 65%)`
+    const role = (urlParams.get('role') || "").toLowerCase();
+    
+    let currentGameMode = 'neon';
+    let myTeamId = null;
+    
+    // Initialize 8 Teams
+    let teams = Array.from({length: 8}, (_, i) => ({
+        id: i + 1,
+        count: 0,
+        mark: 0,
+        color: `hsl(${i * 45}, 100%, 65%)`,
+        lastSeen: Date.now()
     }));
 
-    // --- MQTT Logic ---
     client.on('connect', () => {
-        console.log("Connected as:", role || "sub");
-        document.getElementById('conn-info').innerText = "NETWORK ONLINE ✅";
-        document.getElementById('conn-info').style.color = "#00e676";
-
+        document.getElementById('conn-info').innerText = "CONNECTED to MQTT";
         if (role === 'main') {
-            document.getElementById('console-title').innerText = "MAIN CONSOLE";
-            client.subscribe(`game/${ROOM_ID}/player/+`);
-            // Sync broadcast
-            setInterval(syncStateToSub, 100);
-        } else if (role === 'player') {
-            // Players don't subscribe to anything for performance
+            document.getElementById('mode-selector').style.display = 'flex';
+            document.getElementById('console-view').classList.add('has-selector');
+            client.subscribe(`game/${ROOM_ID}/join`);
+            client.subscribe(`game/${ROOM_ID}/action/+`);
+            setInterval(broadcastState, 200);
         } else {
-            document.getElementById('console-title').innerText = "SUB CONSOLE";
             client.subscribe(`game/${ROOM_ID}/state`);
         }
+        updateUI(); // Force first UI render
     });
 
     client.on('message', (topic, msg) => {
         const data = JSON.parse(msg.toString());
 
         if (topic.endsWith('/state')) {
-            // SUB CONSOLE receives state
-            if (role !== 'main' && role !== 'player') {
-                data.forEach((ps, i) => {
-                    players[i].online = ps.online;
-                    players[i].mark = ps.mark;
-                    players[i].btn = ps.btn;
-                });
-                updatePlayerListUI();
-            }
-        } else if (topic.includes('/player/')) {
-            // MAIN CONSOLE receives input
-            if (role === 'main') {
-                const laneId = parseInt(topic.split('/').pop());
-                const p = players[laneId - 1];
-                if (p) {
-                    p.online = true;
-                    p.btn = data.btn;
-                    p.lastSeen = Date.now();
-                    if (data.btn > 0) p.mark += 0.5;
-                    updatePlayerListUI();
+            currentGameMode = data.mode;
+            teams = data.teams;
+            updateUI();
+        } 
+        else if (role === 'main') {
+            if (topic.endsWith('/join')) {
+                const t = teams[data.teamId - 1];
+                if (t && t.count < 2) {
+                    t.count++;
+                    updateUI(); // Update immediately for main console
+                }
+            } else if (topic.includes('/action/')) {
+                const teamId = parseInt(topic.split('/').pop());
+                const t = teams[teamId - 1];
+                if (t && t.count > 0) {
+                    t.mark += 15; // Movement speed
                 }
             }
         }
     });
 
-    // --- Core Functions ---
-    window.onload = () => {
-        if (role === 'player') {
-            setupPlayerLobby();
-        } else {
-            setupConsoleView();
-        }
-    };
-
-    function setupConsoleView() {
-        showPage('console-view');
-        updatePlayerListUI();
-        
-        // Generate QR Code
-        const qrUrl = window.location.origin + window.location.pathname + "?role=player";
-        new QRCode(document.getElementById("qrcode"), { 
-            text: qrUrl, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M 
-        });
-
-        initCanvas();
+    function broadcastState() {
+        if (role !== 'main') return;
+        client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ mode: currentGameMode, teams: teams }));
     }
 
-    function setupPlayerLobby() {
-        showPage('lobby-view');
-        const grid = document.getElementById('lane-btns');
-        grid.innerHTML = ""; // Clear
-        for(let i=1; i<=10; i++) {
-            const b = document.createElement('button');
-            b.style.cssText = "padding:25px; background:#111; border:2px solid var(--blue); color:#fff; border-radius:12px; font-weight:bold; font-size:1.2rem;";
-            b.innerText = "LANE " + i;
-            b.onclick = () => {
-                myLane = i;
-                document.getElementById('p-header').innerText = "LANE " + i;
-                showPage('player-view');
-                // Send join signal immediately
-                send(0);
-                // Keep-alive
-                setInterval(() => send(0), 1500);
-            };
-            grid.appendChild(b);
-        }
+    function switchMode(mode) { 
+        if (role !== 'main') return;
+        currentGameMode = mode; 
+        document.getElementById('btn-neon').className = 'mode-btn' + (mode==='neon'?' active':'');
+        document.getElementById('btn-pnb').className = 'mode-btn' + (mode==='pnb'?' active':'');
+        broadcastState(); 
     }
 
-    function showPage(id) {
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
-        document.getElementById(id).classList.add('active-page');
+    function sendJoin(id) {
+        myTeamId = id;
+        client.publish(`game/${ROOM_ID}/join`, JSON.stringify({ teamId: id }));
+        document.getElementById('p-header').innerText = "TEAM " + id;
+        showPage('player-view');
     }
 
     function send(code) {
-        if (myLane && client.connected) {
-            client.publish(`game/${ROOM_ID}/player/${myLane}`, JSON.stringify({ btn: code }));
+        if (myTeamId) client.publish(`game/${ROOM_ID}/action/${myTeamId}`, JSON.stringify({ btn: code }));
+    }
+
+    function updateUI() {
+        // Update Sidebar Info
+        const list = document.getElementById('player-list');
+        if (list) {
+            list.innerHTML = teams.map(t => {
+                let statusClass = t.count === 2 ? 'team-full' : (t.count === 1 ? 'team-active' : '');
+                return `
+                    <div class="team-card ${statusClass}">
+                        <strong style="color:${t.color}">TEAM ${t.id}</strong><br>
+                        <span style="font-size:0.8rem">Players: ${t.count}/2</span><br>
+                        <div style="background:#444; height:5px; margin-top:5px;">
+                            <div style="background:${t.color}; width:${(t.mark/1000)*100}%; height:100%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Update iPad Grid
+        const grid = document.getElementById('team-grid');
+        if (grid) {
+            if (grid.children.length === 0) {
+                for(let i=1; i<=8; i++) {
+                    const b = document.createElement('button');
+                    b.id = "btn-team-" + i;
+                    b.className = "team-select-btn";
+                    b.innerText = "TEAM " + i;
+                    b.onclick = () => sendJoin(i);
+                    grid.appendChild(b);
+                }
+            }
+            teams.forEach(t => {
+                const b = document.getElementById("btn-team-" + t.id);
+                if (b) {
+                    b.innerText = `TEAM ${t.id} (${t.count}/2)`;
+                    b.disabled = (t.count >= 2 && myTeamId !== t.id);
+                    if (myTeamId === t.id) b.classList.add('joined');
+                }
+            });
         }
     }
 
-    function syncStateToSub() {
-        if (role !== 'main') return;
-        const state = players.map(p => ({ id: p.id, online: p.online, mark: p.mark, btn: p.btn }));
-        client.publish(`game/${ROOM_ID}/state`, JSON.stringify(state));
-    }
-
-    function updatePlayerListUI() {
-        const list = document.getElementById('player-list');
-        if (!list) return;
-        list.innerHTML = players.map(p => `
-            <div class="player-card ${p.online ? 'online' : ''}">
-                <div style="display:flex; justify-content:space-between; font-weight:bold;">
-                    <span>LANE ${p.id}</span>
-                    <span style="color:var(--blue)">${Math.floor(p.mark)}m</span>
-                </div>
-                <div style="display:flex; gap:3px; margin-top:8px;">
-                    <div style="flex:1; height:12px; background:${p.btn==1?'#ff5252':'#222'}"></div>
-                    <div style="flex:1; height:12px; background:${p.btn==2?'#448aff':'#222'}"></div>
-                    <div style="flex:1; height:12px; background:${p.btn==3?'#ffab40':'#222'}"></div>
-                    <div style="flex:1; height:12px; background:${p.btn==4?'#69f0ae':'#222'}"></div>
-                </div>
-            </div>
-        `).join('');
-    }
+    function showPage(id) { document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page')); document.getElementById(id).classList.add('active-page'); }
 
     function initCanvas() {
         const canvas = document.getElementById('trackCanvas');
         const ctx = canvas.getContext('2d');
         const container = document.getElementById('playground');
-
-        const resize = () => {
-            canvas.width = container.clientWidth;
-            canvas.height = container.clientHeight;
-        };
-        window.addEventListener('resize', resize);
-        resize();
+        const resize = () => { canvas.width = container.clientWidth; canvas.height = container.clientHeight; };
+        window.addEventListener('resize', resize); resize();
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const cx = canvas.width / 2;
-            const cy = canvas.height / 2;
-            const sw = canvas.width * 0.3; 
-            const baseR = canvas.height * 0.15;
-            const gap = canvas.height * 0.035;
+            const laneH = canvas.height / 9;
 
-            players.forEach((p, i) => {
-                const r = baseR + (i * gap);
-                ctx.strokeStyle = p.online ? "rgba(0, 255, 255, 0.8)" : "rgba(255,255,255,0.05)";
-                ctx.lineWidth = p.online ? 3 : 1;
-                ctx.beginPath();
-                ctx.arc(cx+sw/2, cy, r, -Math.PI/2, Math.PI/2);
-                ctx.lineTo(cx-sw/2, cy+r);
-                ctx.arc(cx-sw/2, cy, r, Math.PI/2, 3*Math.PI/2);
-                ctx.closePath(); ctx.stroke();
-                
-                if (p.online) {
-                    const prog = p.mark * 0.005;
-                    const total = (sw * 2) + (Math.PI * r * 2);
-                    let d = (prog % 1) * total;
-                    let x, y;
+            if (currentGameMode === 'neon') {
+                for (let i = 0; i <= 8; i++) {
+                    const y = (i + 0.5) * laneH;
+                    ctx.strokeStyle = "rgba(0, 255, 255, 0.2)";
+                    ctx.setLineDash([15, 15]);
+                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+                }
+                ctx.setLineDash([]);
+                ctx.strokeStyle = "var(--blue)"; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(80, 0); ctx.lineTo(80, canvas.height); ctx.stroke();
+            } else {
+                ctx.fillStyle = "rgba(100, 50, 0, 0.15)";
+                for (let r=1; r<=2; r++) for(let c=1; c<=4; c++) {
+                    const bx = (canvas.width/5)*c, by = (canvas.height/3)*r;
+                    ctx.beginPath(); ctx.moveTo(bx, by-50); ctx.quadraticCurveTo(bx+40,by+30,bx-40,by+30); ctx.fill();
+                }
+            }
+
+            teams.forEach((t, i) => {
+                if (t.count > 0) {
+                    const y = (i + 1) * laneH;
+                    const x = Math.max(80, canvas.width - (t.mark % canvas.width));
                     
-                    if (d < sw) { x = cx - sw/2 + d; y = cy - r; }
-                    else if (d < sw + Math.PI*r) {
-                        let a = (d - sw) / r - Math.PI/2;
-                        x = cx + sw/2 + Math.cos(a)*r; y = cy + Math.sin(a)*r;
-                    } else if (d < sw*2 + Math.PI*r) {
-                        x = cx + sw/2 - (d - sw - Math.PI*r); y = cy + r;
+                    if (currentGameMode === 'pnb') {
+                        ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(x, y, 22, 0, 7); ctx.fill();
+                        ctx.fillStyle = "red"; ctx.font = "bold 12px sans-serif"; ctx.textAlign="center";
+                        ctx.fillText("T" + t.id, x, y+5);
                     } else {
-                        let a = (d - sw*2 - Math.PI*r) / r + Math.PI/2;
-                        x = cx - sw/2 + Math.cos(a)*r; y = cy + Math.sin(a)*r;
+                        ctx.fillStyle = t.color; ctx.shadowBlur = 20; ctx.shadowColor = t.color;
+                        ctx.beginPath(); ctx.arc(x, y, 18, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+                        ctx.fillStyle = "#000"; ctx.font = "bold 14px Arial"; ctx.textAlign="center";
+                        ctx.fillText(t.id, x, y+5);
                     }
-
-                    ctx.fillStyle = p.color;
-                    ctx.shadowBlur = 15; ctx.shadowColor = p.color;
-                    ctx.beginPath(); ctx.arc(x, y, 12, 0, 7); ctx.fill();
-                    ctx.shadowBlur = 0;
-                    ctx.fillStyle = "white"; ctx.font = "bold 10px sans-serif"; ctx.textAlign="center";
-                    ctx.fillText(p.id, x, y + 4);
                 }
             });
             requestAnimationFrame(draw);
         }
         draw();
-
-        // Main Console Cleanup
-        if (role === 'main') {
-            setInterval(() => {
-                const now = Date.now();
-                players.forEach(p => { if(p.online && now - p.lastSeen > 5000) p.online = false; });
-                updatePlayerListUI();
-            }, 3000);
-        }
     }
+
+    window.onload = () => {
+        if (role !== 'player') {
+            showPage('console-view');
+            new QRCode(document.getElementById("qrcode"), { 
+                text: window.location.origin + window.location.pathname + "?role=player", 
+                width: 80, height: 80 
+            });
+            initCanvas();
+        } else {
+            showPage('lobby-view');
+        }
+        updateUI(); // Immediate render
+    };
 </script>
 </body>
 </html>
