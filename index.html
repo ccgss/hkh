@@ -114,9 +114,10 @@
     const urlParams = new URLSearchParams(window.location.search);
     const role = urlParams.get('role'); // 'player', 'console', or null (Main Admin)
     
-    // === 修正：處理 Canvas 環境下的 WebSocket 安全阻擋 ===
+    // === 修正：處理 Canvas 環境下的 WebSocket 安全阻擋與回傳機制 ===
     const isCanvas = typeof __app_id !== 'undefined' || window.location.hostname.includes('googleusercontent');
     let client;
+    let msgCallback = null;
 
     if (isCanvas) {
         // 在預覽環境中改用 BroadcastChannel 進行多視窗本地同步
@@ -125,10 +126,19 @@
         client = {
             on: (event, cb) => {
                 if (event === 'connect') setTimeout(cb, 100);
-                if (event === 'message') bc.addEventListener('message', e => cb(e.data.topic, e.data.msg));
+                if (event === 'message') {
+                    msgCallback = cb;
+                    bc.addEventListener('message', e => cb(e.data.topic, e.data.msg));
+                }
             },
             subscribe: (topic) => {},
-            publish: (topic, msg) => bc.postMessage({topic, msg})
+            publish: (topic, msg) => {
+                bc.postMessage({topic, msg});
+                // 模擬 MQTT 廣播行為：發送者自己也會收到這個事件，確保主機台側邊欄能順利更新
+                if (msgCallback) {
+                    setTimeout(() => msgCallback(topic, msg), 10);
+                }
+            }
         };
     } else {
         // 在正式環境 (GitHub Pages) 繼續使用 MQTT 連線
@@ -522,6 +532,7 @@
             }
         } else {
             showPage('console-view');
+            updateBigScreen(); // 預先渲染左側欄隊伍資訊
             initRace();
         }
     };
