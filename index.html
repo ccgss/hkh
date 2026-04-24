@@ -126,28 +126,24 @@
 
     if (isCanvas) {
         console.log("Canvas 環境偵測：採用 BroadcastChannel 單機模擬以避開 WebSocket 阻擋。");
-        // 建立單機廣播通道 (解決 Canvas 阻擋外部 WSS 的問題)
         const bc = new BroadcastChannel(ROOM_ID);
         client = {
             on: (event, cb) => {
                 if (event === 'connect') setTimeout(cb, 100);
                 if (event === 'message') {
                     msgCallback = cb;
-                    // 包裝成含有 toString 的物件以相容 JSON.parse(msg.toString())
                     bc.addEventListener('message', e => cb(e.data.topic, { toString: () => e.data.msg }));
                 }
             },
             subscribe: (topic) => {},
             publish: (topic, msg) => {
                 bc.postMessage({topic, msg});
-                // 模擬 MQTT Loopback，自己也能收到廣播
                 if (msgCallback) {
                     setTimeout(() => msgCallback(topic, { toString: () => msg }), 10);
                 }
             }
         };
     } else {
-        // 離開 Canvas 後 (例如在新分頁或 GitHub Pages) 正常使用 MQTT
         client = mqtt.connect(BROKER);
     }
     // ===========================================
@@ -224,17 +220,18 @@
     client.on('connect', () => {
         if (!role) { 
             client.subscribe(`game/${ROOM_ID}/join`);
+            client.subscribe(`game/${ROOM_ID}/leave`);
             client.subscribe(`game/${ROOM_ID}/submit`);
-            // 主機每 500ms 廣播全域狀態
+            
+            // 主機每 1000ms 廣播全域狀態作為心跳保底
             setInterval(() => {
                 client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz }));
-            }, 500);
+            }, 1000);
             
-            // 如果是在預覽環境，加上顯著的提示讓使用者知道要開新視窗
             if (isCanvas) {
                 const warn = document.createElement('div');
                 warn.style.cssText = "background: #ff4757; color: white; text-align: center; padding: 10px; font-size: 14px; font-weight: bold; position: absolute; top: 0; left: 0; width: 100%; z-index: 9999;";
-                warn.innerHTML = "⚠️ Canvas 環境安全限制：目前為單機預覽模式。若需使用真實 iPad 掃碼跨裝置連線，請點擊右上角「在新分頁開啟 (Open in new tab)」！";
+                warn.innerHTML = "⚠️ Canvas 安全限制：目前為單機模式，iPad 無法連線。請在電腦開啟兩個新分頁測試，或匯出 HTML 後執行！";
                 document.body.appendChild(warn);
             }
         } else {
@@ -262,17 +259,31 @@
             if (role === 'player' && myTeamId) handlePlayerLogic();
             
         } else if (!role) { 
-            // 只有主機能處理寫入邏輯
+            // === 只有主機處理寫入邏輯，並「即時廣播」更新狀態 ===
             const tId = data.tId;
             if (topic.endsWith('/join')) { 
-                if(teams[tId-1].count < 2) teams[tId-1].count++; 
+                if(teams[tId-1].count < 2) {
+                    teams[tId-1].count++; 
+                    client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz }));
+                }
+            }
+            if (topic.endsWith('/leave')) {
+                if(teams[tId-1].count > 0) {
+                    teams[tId-1].count--;
+                    client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz }));
+                }
             }
             if (topic.endsWith('/submit')) {
                 let t = teams[tId-1];
                 if (!t.locked && t.qIdx === data.qIdx) {
                     t.locked = true;
                     if (data.isCorrect) t.mark += 100;
-                    setTimeout(() => { t.qIdx++; t.locked = false; }, 1500);
+                    client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz }));
+                    setTimeout(() => { 
+                        t.qIdx++; 
+                        t.locked = false; 
+                        client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz }));
+                    }, 1500);
                 }
             }
         }
@@ -523,12 +534,16 @@
         localStorage.setItem('gp_reconnect_id', id);
         client.publish(`game/${ROOM_ID}/join`, JSON.stringify({tId: id}));
         showPage('player-view'); 
-        handlePlayerLogic(); // 立即渲染狀態，避免等待 MQTT 延遲
+        handlePlayerLogic(); 
     }
 
     function clearTeam() {
+        if (myTeamId) {
+            client.publish(`game/${ROOM_ID}/leave`, JSON.stringify({tId: myTeamId}));
+        }
         localStorage.removeItem('gp_reconnect_id');
-        location.reload();
+        // 延遲重整以確保退出訊息成功發送
+        setTimeout(() => { location.reload(); }, 100);
     }
 
     // 將二維條碼渲染改到打開面板時執行，避免 display:none 導致的生成錯誤
@@ -570,7 +585,7 @@
             if (saved) { 
                 myTeamId = parseInt(saved); 
                 showPage('player-view'); 
-                handlePlayerLogic(); // 立即渲染狀態，避免等待 MQTT 延遲
+                handlePlayerLogic(); 
             } else {
                 showPage('lobby-view');
                 renderTeamButtons(); 
