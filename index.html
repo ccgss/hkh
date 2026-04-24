@@ -327,12 +327,12 @@
 
         if (myT.count < 2) { 
             ov.style.display = 'flex'; 
-            msg.innerText = "STEP 2: WAIT OTHER PLAYER TO JOIN (1/2)..."; 
+            msg.innerText = "STEP 2: WAITING FOR PARTNER (1/2)..."; 
             return; 
         }
         if (!gameActive) { 
             ov.style.display = 'flex'; 
-            msg.innerText = "Team Ready! Watch the Screen."; 
+            msg.innerText = "STEP 3: WAITING FOR GAME TO START..."; 
             return; 
         }
         if (myT.locked) { 
