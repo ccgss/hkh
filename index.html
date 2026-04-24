@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Team Quiz Master - GitHub Edition</title>
+    <title>Team Quiz Master - Trad/Simp Switch</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
@@ -13,126 +13,113 @@
         .page { display: none; width: 100vw; height: 100vh; flex-direction: column; }
         .active-page { display: flex; }
 
-        /* --- 主螢幕懸浮控制系統 --- */
-        #menu-wrapper { position: fixed; top: 20px; right: 20px; z-index: 1000; display: none; }
-        #menu-trigger { width: 55px; height: 55px; background: var(--blue); border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; border: 2px solid #fff; font-size: 24px; box-shadow: 0 0 15px var(--blue); }
-        #popup-panel { position: absolute; top: 65px; right: 0; width: 280px; background: var(--panel); border-radius: 15px; border: 1px solid #444; padding: 20px; display: none; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
-        .popup-sec { margin-bottom: 20px; text-align: center; }
-        .btn-start { width: 100%; padding: 12px; background: var(--red); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1.1rem; }
+        /* --- 頂部控制列 --- */
+        .top-bar { height: 60px; background: #111; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; border-bottom: 2px solid #333; }
+        .lang-btn { background: #444; color: white; border: 1px solid #666; padding: 6px 15px; border-radius: 5px; cursor: pointer; font-size: 1rem; font-weight: bold; }
         
-        /* --- 主螢幕佈局 --- */
+        /* --- 主螢幕控制 --- */
+        #menu-wrapper { position: fixed; top: 20px; right: 20px; z-index: 1000; }
+        #menu-trigger { width: 50px; height: 50px; background: var(--blue); border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; border: 2px solid #fff; font-size: 20px; }
+        #popup-panel { position: absolute; top: 60px; right: 0; width: 250px; background: var(--panel); border-radius: 10px; border: 1px solid #444; padding: 15px; display: none; }
+        
         #main-layout { display: flex; flex: 1; }
-        #player-sidebar { width: 260px; background: #111; border-right: 2px solid #333; padding: 15px; overflow-y: auto; }
-        .team-card { background: #222; padding: 12px; margin-bottom: 10px; border-radius: 8px; border-left: 8px solid #444; }
+        #player-sidebar { width: 260px; background: #111; border-right: 1px solid #333; padding: 15px; }
+        .team-card { background: #222; padding: 10px; margin-bottom: 8px; border-radius: 5px; border-left: 5px solid #444; }
         .team-card.ready { border-left-color: var(--green); }
         #playground { flex: 1; position: relative; }
-        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        canvas { width: 100%; height: 100%; }
 
-        /* --- iPad 介面 --- */
-        .timer-wrap { width: 100%; height: 12px; background: #333; }
+        /* --- iPad 答題介面 --- */
+        .timer-wrap { width: 100%; height: 10px; background: #222; }
         #timer-bar { height: 100%; width: 100%; background: var(--red); transition: width 0.1s linear; }
-        .q-display { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px; text-align: center; }
-        .ans-grid { height: 350px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 20px; }
-        .ans-btn { border: none; border-radius: 15px; font-size: 1.8rem; font-weight: bold; color: white; background: #333; }
-        .ans-btn.correct { background: var(--green) !important; box-shadow: 0 0 20px var(--green); }
+        .q-display { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 30px; text-align: center; }
+        .ans-grid { height: 320px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 15px; }
+        .ans-btn { border: none; border-radius: 12px; font-size: 1.6rem; font-weight: bold; color: white; background: #2a2a2a; }
+        .ans-btn.correct { background: var(--green) !important; }
         .ans-btn.wrong { background: var(--red) !important; }
-        #locked-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; z-index: 100; justify-content: center; align-items: center; font-size: 2rem; color: var(--red); pointer-events: none; }
+        
+        #locked-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; z-index: 100; justify-content: center; align-items: center; font-size: 2.2rem; color: var(--red); font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div id="menu-wrapper">
+    <div id="menu-wrapper" style="display:none;">
         <div id="menu-trigger" onclick="togglePopup()">⚙️</div>
         <div id="popup-panel">
-            <div class="popup-sec">
-                <div id="qrcode-container" style="background:white; padding:10px; display:inline-block; border-radius:5px; min-width:128px; min-height:128px;"></div>
-                <p style="font-size:12px; color:#888; margin-top:5px;">掃描加入 (Player)</p>
-            </div>
-            <div class="popup-sec">
-                <button class="btn-start" onclick="startGame()">開始遊戲 START</button>
-            </div>
+            <div id="qrcode-area" style="background:white; padding:10px; text-align:center; margin-bottom:10px;"></div>
+            <button onclick="sendStartSignal()" style="width:100%; padding:10px; background:var(--red); color:white; border:none; border-radius:5px; font-weight:bold;">START GAME / 開始遊戲</button>
         </div>
     </div>
 
     <div id="console-view" class="page">
-        <header style="height:70px; background:#000; border-bottom:2px solid #333; display:flex; align-items:center; padding:0 25px;">
-            <h2 style="color:var(--blue); margin:0;">TEAM BATTLE MASTER</h2>
-            <div id="game-status" style="margin-left:auto; color:var(--gold);">等待玩家準備</div>
+        <header class="top-bar">
+            <h3 style="color:var(--blue); margin:0;">QUIZ ARENA 2026</h3>
+            <div id="game-status">Waiting for players...</div>
         </header>
         <div id="main-layout">
-            <aside id="player-sidebar"><h3>隊伍進度</h3><div id="player-list"></div></aside>
+            <aside id="player-sidebar"><div id="player-list-container"></div></aside>
             <main id="playground"><canvas id="mainCanvas"></canvas></main>
         </div>
     </div>
 
     <div id="lobby-view" class="page" style="justify-content:center; align-items:center;">
-        <h1 style="color:var(--blue);">選擇您的隊伍</h1>
-        <div id="team-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:20px; width:80%;"></div>
+        <div style="position:absolute; top:20px; right:20px;">
+            <button class="lang-btn" onclick="toggleLang()">繁 / 简</button>
+        </div>
+        <h2 id="lang-select-team" style="color:var(--blue);">選擇您的隊伍</h2>
+        <div id="team-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:15px; width:90%;"></div>
     </div>
 
     <div id="player-view" class="page">
         <div id="locked-overlay">隊友已搶答！</div>
-        <div class="timer-wrap"><div id="timer-bar"></div></div>
-        <div style="padding:15px; display:flex; justify-content:space-between; background:#111;">
-            <div id="p-team-id" style="color:var(--blue); font-weight:bold;">隊伍 --</div>
-            <div id="p-team-score">總分: 0</div>
+        <div class="top-bar">
+            <div id="ui-team-info" style="font-weight:bold; color:var(--blue);">Team --</div>
+            <button class="lang-btn" onclick="toggleLang()">繁 / 简</button>
+            <div id="ui-team-score">分數: 0</div>
         </div>
+        <div class="timer-wrap"><div id="timer-bar"></div></div>
         <div class="q-display">
-            <div id="q-text" style="font-size:2.2rem; font-weight:bold;">準備中...</div>
+            <div id="ui-q-text" style="font-size:2rem; font-weight:bold;">等待開始...</div>
         </div>
         <div class="ans-grid">
-            <button class="ans-btn" onclick="submitAns(0)" id="opt-0">A</button>
-            <button class="ans-btn" onclick="submitAns(1)" id="opt-1">B</button>
-            <button class="ans-btn" onclick="submitAns(2)" id="opt-2">C</button>
-            <button class="ans-btn" onclick="submitAns(3)" id="opt-3">D</button>
+            <button class="ans-btn" onclick="submitChoice(0)" id="btn-0">A</button>
+            <button class="ans-btn" onclick="submitChoice(1)" id="btn-1">B</button>
+            <button class="ans-btn" onclick="submitChoice(2)" id="btn-2">C</button>
+            <button class="ans-btn" onclick="submitChoice(3)" id="btn-3">D</button>
         </div>
     </div>
 
 <script>
-    // --- 配置區 ---
-    const ROOM_ID = "GH_PUB_SYNC_2026";
+    const ROOM_ID = "TEAM_QUIZ_ZH_FIXED";
     const BROKER = "wss://broker.emqx.io:8084/mqtt";
     const client = mqtt.connect(BROKER);
-    const urlParams = new URLSearchParams(window.location.search);
-    const role = (urlParams.get('role') || "").toLowerCase();
+    const params = new URLSearchParams(window.location.search);
+    const isPlayer = params.has('role');
 
-    let teams = Array.from({length: 8}, (_, i) => ({ id: i+1, count: 0, mark: 0, qIdx: 0, locked: false, color: `hsl(${i*45}, 100%, 65%)` }));
-    let isStarted = false, myTeamId = null, timerInt = null, timeLeft = 10;
+    // 多語言詞庫 (介面切換使用)
+    let currentLang = 'trad'; 
+    const langLib = {
+        trad: { selectTeam: "選擇您的隊伍", score: "分數", status: "等待開始...", locked: "隊友已搶答！", team: "隊伍" },
+        simp: { selectTeam: "选择您的队伍", score: "分数", status: "等待开始...", locked: "队友已抢答！", team: "队伍" }
+    };
 
-    const questions = [
-        { q: "25 x 4 = ?", a: ["80", "100", "120", "150"], correct: 1 },
-        { q: "HTML 代表什麼？", a: ["HyperText Markup Language", "HighTech Main Link", "Home Tool Mini", "Hyperlink Text Mark"], correct: 0 },
-        { q: "哪種動物是哺乳類？", a: ["金魚", "企鵝", "海豚", "鱷魚"], correct: 2 }
+    let teams = Array.from({length: 8}, (_, i) => ({ id: i+1, count: 0, mark: 0, qIdx: 0, locked: false, color: `hsl(${i*45}, 100%, 60%)` }));
+    let gameActive = false, myTeamId = null, localQIdx = -1, timer = null;
+
+    // 題庫範例：繁體、簡體、英文混雜
+    const quizData = [
+        { q: "What is 15 + 15?", a: ["20", "30", "40", "50"], c: 1 },
+        { q: "Which company makes the iPhone?", a: ["Apple", "Samsung", "Sony", "Nokia"], c: 0 },
+        { q: "誰發明了燈泡？", a: ["愛因斯坦", "愛迪生", "牛頓", "特斯拉"], c: 1 }
     ];
 
-    // --- QR Code 生成修正 ---
-    function generateQR() {
-        const container = document.getElementById("qrcode-container");
-        if (!container) return;
-        container.innerHTML = ""; // 清空舊的
-        
-        // 自動獲取當前網址並加上角色參數
-        let currentURL = window.location.href.split('?')[0]; 
-        let playerURL = currentURL + "?role=player";
-
-        new QRCode(container, {
-            text: playerURL,
-            width: 140,
-            height: 140,
-            colorDark : "#000000",
-            colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.H
-        });
-        console.log("QR Code Generated for: " + playerURL);
-    }
-
     client.on('connect', () => {
-        if (role !== 'player') {
+        if (!isPlayer) {
             document.getElementById('menu-wrapper').style.display = 'block';
             client.subscribe(`game/${ROOM_ID}/join`);
-            client.subscribe(`game/${ROOM_ID}/ans_sub`);
-            setInterval(() => client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, isStarted })), 400);
-            generateQR(); // 連線後生成
+            client.subscribe(`game/${ROOM_ID}/submit`);
+            setInterval(() => client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive })), 500);
+            renderQR();
         } else {
             client.subscribe(`game/${ROOM_ID}/state`);
         }
@@ -141,21 +128,25 @@
     client.on('message', (topic, msg) => {
         const data = JSON.parse(msg.toString());
         if (topic.endsWith('/state')) {
-            const wasStarted = isStarted;
             teams = data.teams;
-            isStarted = data.isStarted;
-            updateUI();
-            if (myTeamId && isStarted && teams[myTeamId-1].count >= 2) {
-                if (!wasStarted) startNextQ();
-                handleSync(teams[myTeamId-1]);
+            gameActive = data.gameActive;
+            updateConsoleUI();
+            if (isPlayer && myTeamId) {
+                const myT = teams[myTeamId-1];
+                if (gameActive && myT.count >= 2) {
+                    if (localQIdx !== myT.qIdx) { localQIdx = myT.qIdx; nextQ(); }
+                    document.getElementById('locked-overlay').style.display = myT.locked ? 'flex' : 'none';
+                    if (myT.locked) clearInterval(timer);
+                }
+                updateUIStrings(myT);
             }
-        } else if (role !== 'player') {
+        } else if (!isPlayer) {
             if (topic.endsWith('/join')) {
-                let t = teams[data.teamId-1];
+                let t = teams[data.tId-1];
                 if (t && t.count < 2) t.count++;
-            } else if (topic.endsWith('/ans_sub')) {
-                let t = teams[data.teamId-1];
-                if (!t.locked && t.qIdx === data.qIdx) {
+            } else if (topic.endsWith('/submit')) {
+                let t = teams[data.tId-1];
+                if (!t.locked) {
                     t.locked = true;
                     if (data.isCorrect) t.mark += 100;
                     setTimeout(() => { t.qIdx++; t.locked = false; }, 2000);
@@ -164,99 +155,106 @@
         }
     });
 
-    function handleSync(team) {
-        document.getElementById('locked-overlay').style.display = team.locked ? 'flex' : 'none';
-        if (team.locked) clearInterval(timerInt);
-        else if (window.localQIdx !== team.qIdx) { window.localQIdx = team.qIdx; startNextQ(); }
+    // 介面語言更新 (不影響題目)
+    function updateUIStrings(myT) {
+        const lang = langLib[currentLang];
+        document.getElementById('lang-select-team').innerText = lang.selectTeam;
+        document.getElementById('locked-overlay').innerText = lang.locked;
+        document.getElementById('ui-team-info').innerText = `${lang.team} ${myTeamId}`;
+        document.getElementById('ui-team-score').innerText = `${lang.score}: ${myT.mark}`;
+        if (!gameActive) document.getElementById('ui-q-text').innerText = lang.status;
     }
 
-    function startNextQ() {
+    function toggleLang() {
+        currentLang = (currentLang === 'trad') ? 'simp' : 'trad';
+        if (myTeamId) updateUIStrings(teams[myTeamId-1]);
+        else document.getElementById('lang-select-team').innerText = langLib[currentLang].selectTeam;
+    }
+
+    function nextQ() {
         showPage('player-view');
         const team = teams[myTeamId-1];
-        const q = questions[team.qIdx % questions.length];
-        document.getElementById('q-text').innerText = q.q;
+        const q = quizData[team.qIdx % quizData.length];
+        
+        // 題目顯示直接從題庫抓取，不經過翻譯過濾
+        document.getElementById('ui-q-text').innerText = q.q;
         for(let i=0; i<4; i++) {
-            const b = document.getElementById(`opt-${i}`);
-            b.innerText = q.a[i];
-            b.className = "ans-btn"; b.disabled = false;
+            document.getElementById(`btn-${i}`).innerText = q.a[i];
+            document.getElementById(`btn-${i}`).className = "ans-btn";
+            document.getElementById(`btn-${i}`).disabled = false;
         }
-        timeLeft = 10;
-        if (timerInt) clearInterval(timerInt);
-        timerInt = setInterval(() => {
-            timeLeft -= 0.1;
-            document.getElementById('timer-bar').style.width = (timeLeft * 10) + "%";
-            if (timeLeft <= 0) submitAns(-1);
+
+        let tLeft = 10.0;
+        if (timer) clearInterval(timer);
+        timer = setInterval(() => {
+            tLeft -= 0.1;
+            document.getElementById('timer-bar').style.width = (tLeft * 10) + "%";
+            if (tLeft <= 0) submitChoice(-1);
         }, 100);
     }
 
-    function submitAns(idx) {
-        const team = teams[myTeamId-1];
-        if (team.locked) return;
-        const q = questions[team.qIdx % questions.length];
-        const isCorrect = (idx === q.correct);
+    function submitChoice(idx) {
+        const q = quizData[teams[myTeamId-1].qIdx % quizData.length];
+        const isCorrect = (idx === q.c);
         if (idx !== -1) {
-            document.getElementById(`opt-${idx}`).classList.add(isCorrect ? 'correct' : 'wrong');
-            if (!isCorrect) document.getElementById(`opt-${q.correct}`).classList.add('correct');
+            document.getElementById(`btn-${idx}`).classList.add(isCorrect ? 'correct' : 'wrong');
+            if (!isCorrect) document.getElementById(`btn-${q.c}`).classList.add('correct');
         }
         document.querySelectorAll('.ans-btn').forEach(b => b.disabled = true);
-        client.publish(`game/${ROOM_ID}/ans_sub`, JSON.stringify({ teamId: myTeamId, qIdx: team.qIdx, isCorrect }));
+        client.publish(`game/${ROOM_ID}/submit`, JSON.stringify({ tId: myTeamId, qIdx: localQIdx, isCorrect }));
     }
 
-    function updateUI() {
-        if (role !== 'player') {
-            document.getElementById('player-list').innerHTML = teams.map(t => `
-                <div class="team-card ${t.count===2?'ready':''}">
-                    <b style="color:${t.color}">隊伍 ${t.id}</b> | 分數: ${t.mark}<br>
-                    人數: ${t.count}/2
-                </div>`).join('');
-        }
-        if (myTeamId) {
-            document.getElementById('p-team-id').innerText = `隊伍 ${myTeamId}`;
-            document.getElementById('p-team-score').innerText = `總分: ${teams[myTeamId-1].mark}`;
-        }
+    function updateConsoleUI() {
+        if (isPlayer) return;
+        const container = document.getElementById('player-list-container');
+        container.innerHTML = teams.map(t => `<div class="team-card ${t.count>=2?'ready':''}">Team ${t.id} (${t.count}/2) | Score: ${t.mark}</div>`).join('');
     }
 
     function joinTeam(id) {
         myTeamId = id;
-        client.publish(`game/${ROOM_ID}/join`, JSON.stringify({ teamId: id }));
+        client.publish(`game/${ROOM_ID}/join`, JSON.stringify({ tId: id }));
         showPage('player-view');
-        document.getElementById('q-text').innerText = "等待主控台開始...";
+        updateUIStrings(teams[myTeamId-1]);
     }
 
-    function startGame() { isStarted = true; togglePopup(); }
+    function sendStartSignal() { gameActive = true; togglePopup(); }
     function togglePopup() { const p = document.getElementById('popup-panel'); p.style.display = p.style.display==='block'?'none':'block'; }
     function showPage(id) { document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page')); document.getElementById(id).classList.add('active-page'); }
 
     window.onload = () => {
-        if (role !== 'player') {
+        if (!isPlayer) {
             showPage('console-view');
             initCanvas();
         } else {
             showPage('lobby-view');
             const grid = document.getElementById('team-grid');
-            for(let i=1; i<=8; i++) grid.innerHTML += `<button onclick="joinTeam(${i})" style="padding:20px; background:#222; color:white; border-radius:8px; border:1px solid #444;">隊伍 ${i}</button>`;
+            for(let i=1; i<=8; i++) grid.innerHTML += `<button onclick="joinTeam(${i})" style="padding:20px; background:#222; color:white; border-radius:10px; border:1px solid #444; font-weight:bold;">Team ${i}</button>`;
         }
     };
+
+    function renderQR() {
+        const path = window.location.origin + window.location.pathname + "?role=player";
+        new QRCode(document.getElementById('qrcode-area'), { text: path, width: 140, height: 140 });
+    }
 
     function initCanvas() {
         const can = document.getElementById('mainCanvas');
         const ctx = can.getContext('2d');
         const resize = () => { can.width = can.parentElement.clientWidth; can.height = can.parentElement.clientHeight; };
         window.onresize = resize; resize();
-        function draw() {
+        function loop() {
             ctx.clearRect(0,0,can.width,can.height);
             teams.forEach((t, i) => {
                 if (t.count > 0) {
                     const x = 60 + (t.mark % (can.width - 120));
                     const y = (i+1) * (can.height / 9);
-                    ctx.fillStyle = t.color;
-                    ctx.beginPath(); ctx.arc(x, y, 20, 0, 7); ctx.fill();
+                    ctx.fillStyle = t.color; ctx.beginPath(); ctx.arc(x, y, 20, 0, 7); ctx.fill();
                     ctx.fillStyle = "white"; ctx.fillText("T"+t.id, x-8, y+5);
                 }
             });
-            requestAnimationFrame(draw);
+            requestAnimationFrame(loop);
         }
-        draw();
+        loop();
     }
 </script>
 </body>
