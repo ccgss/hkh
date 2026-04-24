@@ -3,42 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Team Battle Quiz Pro</title>
+    <title>Grand Prix Quiz Pro - 60 Questions Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        :root { --bg: #000; --blue: #00ffff; --gold: #ffd700; --red: #ff4757; --green: #2ed573; --panel: rgba(25, 25, 25, 0.98); }
+        :root { --bg: #121212; --blue: #00ffff; --gold: #ffd700; --red: #ff4757; --green: #2ed573; --panel: rgba(25, 25, 25, 0.98); }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: white; font-family: "Microsoft JhengHei", sans-serif; overflow: hidden; }
         
-        /* 頁面切換 */
         .page { display: none; width: 100vw; height: 100vh; flex-direction: column; }
         .active-page { display: flex; }
 
-        /* 主螢幕 UI */
-        .top-bar { height: 70px; background: #000; display: flex; justify-content: space-between; align-items: center; padding: 0 30px; border-bottom: 2px solid #333; }
+        /* 主控台大螢幕 */
+        .top-bar { height: 70px; background: #000; display: flex; justify-content: space-between; align-items: center; padding: 0 30px; border-bottom: 3px solid var(--blue); }
         #main-layout { display: flex; flex: 1; overflow: hidden; }
-        #sidebar { width: 300px; background: #111; border-right: 2px solid #333; padding: 20px; overflow-y: auto; }
-        .team-card { background: #222; padding: 15px; margin-bottom: 12px; border-radius: 10px; border-left: 8px solid #444; }
+        #sidebar { width: 280px; background: #111; border-right: 2px solid #333; padding: 20px; }
+        .team-card { background: #222; padding: 12px; margin-bottom: 10px; border-radius: 8px; border-left: 8px solid #444; font-size: 1.1rem; }
         .team-card.ready { border-left-color: var(--green); background: #1a2a1a; }
-        #playground { flex: 1; position: relative; background: #080808; }
-        canvas { width: 100%; height: 100%; }
-
-        /* 懸浮選單 */
-        #menu-wrapper { position: fixed; top: 20px; right: 20px; z-index: 1000; }
-        #menu-trigger { width: 55px; height: 55px; background: var(--blue); border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; border: 2px solid #fff; font-size: 24px; box-shadow: 0 0 15px var(--blue); }
-        #popup-panel { position: absolute; top: 65px; right: 0; width: 280px; background: var(--panel); border-radius: 15px; border: 1px solid #444; padding: 20px; display: none; }
         
-        /* iPad UI */
-        .lang-btn { background: #444; color: white; border: 1px solid #666; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        #playground { flex: 1; position: relative; background: #1a1a1a; }
+        canvas { width: 100%; height: 100%; display: block; }
+
+        /* 管理員選單 */
+        #menu-wrapper { position: fixed; top: 15px; right: 20px; z-index: 1000; }
+        #menu-trigger { width: 50px; height: 50px; background: var(--blue); border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; border: 2px solid #fff; font-size: 24px; box-shadow: 0 0 15px var(--blue); }
+        #popup-panel { position: absolute; top: 60px; right: 0; width: 260px; background: var(--panel); border-radius: 15px; border: 1px solid #444; padding: 20px; display: none; }
+
+        /* iPad 玩家介面 */
         .timer-wrap { width: 100%; height: 12px; background: #333; }
         #timer-bar { height: 100%; width: 100%; background: var(--red); transition: width 0.1s linear; }
-        .q-display { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px; text-align: center; }
-        .ans-grid { height: 380px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; background: #000; }
-        .ans-btn { border: none; border-radius: 15px; font-size: 1.8rem; font-weight: bold; color: white; background: #2a2a2a; transition: 0.2s; }
+        .q-display { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 30px; text-align: center; }
+        .ans-grid { height: 380px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 20px; }
+        .ans-btn { border: none; border-radius: 15px; font-size: 1.8rem; font-weight: bold; color: white; background: #333; cursor: pointer; }
+        .ans-btn:active { transform: scale(0.95); }
         .ans-btn.correct { background: var(--green) !important; box-shadow: 0 0 20px var(--green); }
-        .ans-btn.wrong { background: var(--red) !important; opacity: 0.5; }
-        
-        #locked-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; z-index: 100; justify-content: center; align-items: center; font-size: 2.5rem; color: var(--red); font-weight: bold; text-align: center; padding: 20px; }
+        .ans-btn.wrong { background: var(--red) !important; }
+
+        /* 遮罩訊息 */
+        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: none; z-index: 100; justify-content: center; align-items: center; text-align: center; padding: 30px; }
     </style>
 </head>
 <body>
@@ -46,44 +47,35 @@
     <div id="menu-wrapper" style="display:none;">
         <div id="menu-trigger" onclick="togglePopup()">⚙️</div>
         <div id="popup-panel">
-            <div id="qrcode-area" style="background:white; padding:10px; text-align:center; margin-bottom:15px; min-height:140px;"></div>
-            <button onclick="startGame()" style="width:100%; padding:15px; background:var(--red); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">START GAME / 開始遊戲</button>
+            <div id="qrcode-area" style="background:white; padding:10px; margin-bottom:15px; display: flex; justify-content: center;"></div>
+            <button onclick="startGame()" style="width:100%; padding:15px; background:var(--red); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; font-size: 1rem;">START GAME (Shuffle)</button>
         </div>
     </div>
 
     <div id="console-view" class="page">
         <header class="top-bar">
-            <h2 style="color:var(--blue); margin:0;">TEAM BATTLE ARENA</h2>
-            <div id="admin-status" style="color:var(--gold); font-weight:bold;">Waiting for Teams...</div>
+            <h2 style="color:var(--blue); margin:0; letter-spacing: 2px;">TEAM RACING ARENA</h2>
+            <div id="status-text" style="color:var(--gold); font-weight: bold;">WAITING FOR TEAMS...</div>
         </header>
         <div id="main-layout">
-            <aside id="sidebar">
-                <h3 style="margin-top:0; border-bottom:1px solid #444; padding-bottom:10px;">隊伍進度 Status</h3>
-                <div id="team-list-ui"></div>
-            </aside>
-            <main id="playground"><canvas id="mainCanvas"></canvas></main>
+            <aside id="sidebar"><div id="team-list-ui"></div></aside>
+            <main id="playground"><canvas id="raceCanvas"></canvas></main>
         </div>
     </div>
 
-    <div id="lobby-view" class="page" style="justify-content:center; align-items:center; background:#050505;">
-        <div style="position:absolute; top:20px; right:20px;">
-            <button class="lang-btn" onclick="toggleLang()">繁 / 简</button>
-        </div>
-        <h1 id="ui-select-title" style="color:var(--blue); font-size:3rem; margin-bottom:40px;">選擇您的隊伍</h1>
-        <div id="team-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:20px; width:90%; max-width:1000px;"></div>
+    <div id="lobby-view" class="page" style="justify-content:center; align-items:center;">
+        <h1 style="color:var(--blue); font-size: 3.5rem; margin-bottom: 40px;">選擇隊伍</h1>
+        <div id="team-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:20px; width:85%;"></div>
     </div>
 
     <div id="player-view" class="page">
-        <div id="locked-overlay">隊友已搶答！<br><span style="font-size:1.2rem;">Partner Answered!</span></div>
+        <div id="overlay"><div id="overlay-msg" style="font-size:2.5rem; color:var(--gold); font-weight:bold;"></div></div>
         <div class="top-bar">
-            <div id="ui-team-label" style="font-weight:bold; color:var(--blue); font-size:1.5rem;">Team --</div>
-            <button class="lang-btn" onclick="toggleLang()">繁 / 简</button>
-            <div id="ui-score-label" style="font-weight:bold; font-size:1.5rem;">分數: 0</div>
+            <div id="ui-team" style="font-size:1.8rem; font-weight:bold; color:var(--blue);">Team --</div>
+            <div id="ui-score" style="font-size:1.8rem;">Score: 0</div>
         </div>
         <div class="timer-wrap"><div id="timer-bar"></div></div>
-        <div class="q-display">
-            <div id="ui-question" style="font-size:2.5rem; font-weight:bold;">Waiting for Admin...</div>
-        </div>
+        <div class="q-display"><div id="ui-q" style="font-size:2.2rem; font-weight:bold;">準備中...</div></div>
         <div class="ans-grid">
             <button class="ans-btn" onclick="sendAns(0)" id="btn-0">A</button>
             <button class="ans-btn" onclick="sendAns(1)" id="btn-1">B</button>
@@ -93,38 +85,97 @@
     </div>
 
 <script>
-    // --- 核心配置 ---
-    const ROOM_ID = "TEAM_QUIZ_FINAL_GITHUB";
+    const ROOM_ID = "TEAM_QUIZ_FINAL_PRO_8";
     const BROKER = "wss://broker.emqx.io:8084/mqtt";
     const client = mqtt.connect(BROKER);
-    
-    // 嚴格判定角色：網址必須有 ?role=player 才是 iPad
     const isPlayer = new URLSearchParams(window.location.search).get('role') === 'player';
 
-    let currentLang = 'trad';
-    const lang = {
-        trad: { title: "選擇您的隊伍", score: "分數", wait: "等待開始...", locked: "隊友已搶答！", team: "隊伍" },
-        simp: { title: "选择您的队伍", score: "分数", status: "等待开始...", locked: "队友已抢答！", team: "队伍" }
-    };
-
-    let teams = Array.from({length: 8}, (_, i) => ({ id: i+1, count: 0, mark: 0, qIdx: 0, locked: false, color: `hsl(${i*45}, 100%, 60%)` }));
-    let gameActive = false, myTeamId = null, localQIdx = -1, timer = null;
-
-    const quiz = [
-        { q: "What is 20 + 35?", a: ["45", "50", "55", "60"], c: 2 },
-        { q: "Which is a web browser?", a: ["Word", "Chrome", "Excel", "Spotify"], c: 1 },
-        { q: "1024 KB is equal to?", a: ["1 MB", "1 GB", "1 TB", "1 Bit"], c: 0 },
-        { q: "誰是『力學之父』？", a: ["愛因斯坦", "牛頓", "居禮夫人", "霍金"], c: 1 }
+    // 60 題中英雙語題庫
+    let quiz = [
+        { q: "太陽系中哪顆行星被稱為「紅色星球」？", a: ["金星", "火星", "木星", "土星"], c: 1 },
+        { q: "請問水的沸點在標準大氣壓下是多少度？", a: ["90°C", "100°C", "110°C", "120°C"], c: 1 },
+        { q: "人體最大的器官是什麼？", a: ["心臟", "肝臟", "皮膚", "肺"], c: 2 },
+        { q: "哪種氣體是植物進行光合作用時吸收的？", a: ["氧氣", "氮氣", "二氧化碳", "氫氣"], c: 2 },
+        { q: "世界上最小的國家是哪一個？", a: ["摩納哥", "梵蒂岡", "馬爾他", "新加坡"], c: 1 },
+        { q: "一小時有多少秒？", a: ["360秒", "3600秒", "60秒", "600秒"], c: 1 },
+        { q: "哪種金屬在常溫下是液態的？", a: ["金", "汞", "銀", "銅"], c: 1 },
+        { q: "著名的「蒙娜麗莎」是誰的作品？", a: ["梵谷", "畢卡索", "達文西", "莫內"], c: 2 },
+        { q: "蜘蛛有多少條腿？", a: ["6條", "8條", "10條", "12條"], c: 1 },
+        { q: "哪種鳥類不會飛行？", a: ["老鷹", "企鵝", "鸚鵡", "麻雀"], c: 1 },
+        { q: "澳洲的代表性動物是什麼？", a: ["大象", "袋鼠", "獅子", "熊貓"], c: 1 },
+        { q: "「沙漠之舟」是指哪種動物？", a: ["馬", "駱駝", "驢子", "大象"], c: 1 },
+        { q: "誰發明了電燈泡？", a: ["特斯拉", "愛迪生", "牛頓", "愛因斯坦"], c: 1 },
+        { q: "一年當中有幾個月有 31 天？", a: ["5個", "6個", "7個", "8個"], c: 2 },
+        { q: "日本的國花是什麼？", a: ["梅花", "牡丹", "櫻花", "蓮花"], c: 2 },
+        { q: "下列哪個國家位於北美洲？", a: ["巴西", "加拿大", "埃及", "泰國"], c: 1 },
+        { q: "電腦的運算核心縮寫是什麼？", a: ["RAM", "GPU", "CPU", "SSD"], c: 2 },
+        { q: "哪種氣體佔大氣層比例最高？", a: ["氧氣", "氮氣", "氫氣", "氦氣"], c: 1 },
+        { q: "三角形的內角和是多少度？", a: ["90度", "180度", "270度", "360度"], c: 1 },
+        { q: "請問 1 分鐘有多少毫秒？", a: ["6000", "60000", "600", "600000"], c: 1 },
+        { q: "「詩仙」是指哪位唐代詩人？", a: ["李白", "杜甫", "王維", "白居易"], c: 0 },
+        { q: "奧運五環中，藍色環代表哪個洲？", a: ["亞洲", "歐洲", "非洲", "美洲"], c: 1 },
+        { q: "聲音在什麼介質中傳播最快？", a: ["空氣", "水", "真空", "固體"], c: 3 },
+        { q: "下列哪一個是可再生能源？", a: ["石油", "煤炭", "太陽能", "天然氣"], c: 2 },
+        { q: "請問 12 乘 12 等於多少？", a: ["124", "144", "164", "184"], c: 1 },
+        { q: "誰提出了相對論？", a: ["牛頓", "居禮夫人", "愛因斯坦", "霍金"], c: 2 },
+        { q: "恐龍是在哪個時代滅絕的？", a: ["白堊紀", "侏羅紀", "三疊紀", "寒武紀"], c: 0 },
+        { q: "蜜蜂採蜜是為了製造什麼？", a: ["水", "花粉", "蜂蜜", "蜂蠟"], c: 2 },
+        { q: "地圖上的藍色通常代表什麼？", a: ["森林", "沙漠", "海洋", "城市"], c: 2 },
+        { q: "哪種物質是「萬能溶劑」？", a: ["酒精", "汽油", "水", "醋"], c: 2 },
+        // --- 英文學科 (English) ---
+        { q: "Which word is a synonym of 'HAPPY'?", a: ["Sad", "Angry", "Joyful", "Sleepy"], c: 2 },
+        { q: "Choose the correct past tense of 'GO'.", a: ["Went", "Gone", "Goes", "Going"], c: 0 },
+        { q: "Which is an example of an ADJECTIVE?", a: ["Run", "Beautiful", "Quickly", "Apple"], c: 1 },
+        { q: "What is the opposite of 'FAST'?", a: ["Quick", "Slow", "High", "Deep"], c: 1 },
+        { q: "Finish the sentence: She ____ a teacher.", a: ["am", "is", "are", "be"], c: 1 },
+        { q: "Which word is the odd one out?", a: ["Table", "Chair", "Desk", "Banana"], c: 3 },
+        { q: "What is a baby dog called?", a: ["Kitten", "Cub", "Puppy", "Calf"], c: 2 },
+        { q: "Identify the plural form of 'MOUSE'.", a: ["Mouses", "Mice", "Mices", "Mouse"], c: 1 },
+        { q: "Which month comes after JULY?", a: ["June", "August", "September", "May"], c: 1 },
+        { q: "I ____ breakfast every morning.", a: ["eat", "eats", "eating", "ate"], c: 0 },
+        { q: "Which is a 'FRUIT'?", a: ["Carrot", "Cabbage", "Orange", "Onion"], c: 2 },
+        { q: "What is the collective noun for birds?", a: ["Herd", "Flock", "Pack", "School"], c: 1 },
+        { q: "Which spelling is correct?", a: ["Receve", "Receive", "Recieve", "Receiv"], c: 1 },
+        { q: "What is the comparative of 'GOOD'?", a: ["Gooder", "Best", "Better", "Well"], c: 2 },
+        { q: "A person who flies an airplane is a...?", a: ["Doctor", "Driver", "Pilot", "Chef"], c: 2 },
+        { q: "Choose the correct article: __ apple a day.", a: ["A", "An", "The", "No article"], c: 1 },
+        { q: "Which word describes a 'PERSON'?", a: ["He", "It", "They", "We"], c: 0 },
+        { q: "What do you use to cut paper?", a: ["Knife", "Scissors", "Pencil", "Spoon"], c: 1 },
+        { q: "How do you say '謝謝' in English?", a: ["Please", "Sorry", "Thank you", "Hello"], c: 2 },
+        { q: "Which is a 'VERB'?", a: ["Book", "Jump", "Yellow", "House"], c: 1 },
+        { q: "What is the capital letter of 'b'?", a: ["D", "P", "B", "Q"], c: 2 },
+        { q: "Which animal says 'Meow'?", a: ["Dog", "Cat", "Cow", "Pig"], c: 1 },
+        { q: "Where does a 'FISH' live?", a: ["Forest", "Sky", "Water", "Desert"], c: 2 },
+        { q: "Which number is 'THIRTEEN'?", a: ["3", "30", "13", "31"], c: 2 },
+        { q: "What color is a 'LEMON'?", a: ["Red", "Purple", "Yellow", "Blue"], c: 2 },
+        { q: "Which is a 'WILD ANIMAL'?", a: ["Cat", "Tiger", "Sheep", "Chicken"], c: 1 },
+        { q: "How many days are in a 'WEEK'?", a: ["5", "6", "7", "10"], c: 2 },
+        { q: "Which is NOT a weekday?", a: ["Monday", "Friday", "Sunday", "Tuesday"], c: 2 },
+        { q: "The sun rises in the ____.", a: ["West", "North", "South", "East"], c: 3 },
+        { q: "Which is a 'TRANSPORT'?", a: ["Bed", "Bicycle", "Bread", "Box"], c: 1 }
     ];
 
-    // --- MQTT 邏輯 ---
+    let teams = Array.from({length: 8}, (_, i) => ({ 
+        id: i+1, count: 0, mark: 0, currentX: 100, qIdx: 0, locked: false, 
+        color: `hsl(${i*45}, 85%, 60%)` 
+    }));
+    let gameActive = false, myTeamId = null, localQIdx = -1, timer = null;
+
+    // 隨機亂序
+    function shuffleQuiz() {
+        for (let i = quiz.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [quiz[i], quiz[j]] = [quiz[j], quiz[i]];
+        }
+    }
+
     client.on('connect', () => {
         if (!isPlayer) {
             document.getElementById('menu-wrapper').style.display = 'block';
             client.subscribe(`game/${ROOM_ID}/join`);
             client.subscribe(`game/${ROOM_ID}/submit`);
-            setInterval(() => client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive })), 500);
-            setTimeout(renderQR, 1000);
+            setInterval(() => client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz })), 800);
+            renderQR();
         } else {
             client.subscribe(`game/${ROOM_ID}/state`);
         }
@@ -133,63 +184,59 @@
     client.on('message', (topic, msg) => {
         const data = JSON.parse(msg.toString());
         if (topic.endsWith('/state')) {
-            teams = data.teams;
+            quiz = data.quiz; 
+            data.teams.forEach((t, i) => {
+                teams[i].count = t.count;
+                teams[i].mark = t.mark;
+                teams[i].locked = t.locked;
+                teams[i].qIdx = t.qIdx;
+            });
             gameActive = data.gameActive;
-            updateConsole();
-            if (isPlayer && myTeamId) {
-                const myT = teams[myTeamId-1];
-                if (gameActive && myT.count >= 2) {
-                    if (localQIdx !== myT.qIdx) { localQIdx = myT.qIdx; setupQ(); }
-                    document.getElementById('locked-overlay').style.display = myT.locked ? 'flex' : 'none';
-                    if (myT.locked) clearInterval(timer);
-                }
-                updatePlayerUI(myT);
-            }
+            if (!isPlayer) updateConsole();
+            if (isPlayer && myTeamId) handlePlayerLogic();
         } else if (!isPlayer) {
-            if (topic.endsWith('/join')) {
-                let t = teams[data.tId-1];
-                if (t && t.count < 2) t.count++;
-            } else if (topic.endsWith('/submit')) {
-                let t = teams[data.tId-1];
+            const tId = data.tId;
+            if (topic.endsWith('/join')) { if(teams[tId-1].count < 2) teams[tId-1].count++; }
+            if (topic.endsWith('/submit')) {
+                let t = teams[tId-1];
                 if (!t.locked && t.qIdx === data.qIdx) {
                     t.locked = true;
                     if (data.isCorrect) t.mark += 100;
-                    setTimeout(() => { t.qIdx++; t.locked = false; }, 2000);
+                    setTimeout(() => { t.qIdx++; t.locked = false; }, 1800);
                 }
             }
         }
     });
 
-    // --- 界面控制 ---
-    function toggleLang() {
-        currentLang = (currentLang === 'trad') ? 'simp' : 'trad';
-        document.getElementById('ui-select-title').innerText = lang[currentLang].title;
-        if (myTeamId) updatePlayerUI(teams[myTeamId-1]);
+    function handlePlayerLogic() {
+        const myT = teams[myTeamId-1];
+        const ov = document.getElementById('overlay');
+        const msg = document.getElementById('overlay-msg');
+
+        if (myT.count < 2) { ov.style.display='flex'; msg.innerText="等待隊友加入 (1/2)..."; return; }
+        if (!gameActive) { ov.style.display='flex'; msg.innerText="隊伍已就緒，等待開始！"; return; }
+        if (myT.locked) { ov.style.display='flex'; msg.innerText="隊友搶答中！"; clearInterval(timer); return; }
+        
+        ov.style.display='none';
+        if (localQIdx !== myT.qIdx) { localQIdx = myT.qIdx; nextQ(); }
+        document.getElementById('ui-team').innerText = "Team " + myTeamId;
+        document.getElementById('ui-score').innerText = "Score: " + myT.mark;
     }
 
-    function updatePlayerUI(myT) {
-        const l = lang[currentLang];
-        document.getElementById('ui-team-label').innerText = `${l.team} ${myTeamId}`;
-        document.getElementById('ui-score-label').innerText = `${l.score}: ${myT.mark}`;
-        document.getElementById('locked-overlay').innerHTML = `${l.locked}<br><span style="font-size:1.2rem;">Partner Answered!</span>`;
-        if (!gameActive) document.getElementById('ui-question').innerText = l.status;
-    }
-
-    function setupQ() {
+    function nextQ() {
         showPage('player-view');
         const q = quiz[teams[myTeamId-1].qIdx % quiz.length];
-        document.getElementById('ui-question').innerText = q.q;
+        document.getElementById('ui-q').innerText = q.q;
         for(let i=0; i<4; i++) {
             const b = document.getElementById(`btn-${i}`);
-            b.innerText = q.a[i];
-            b.className = "ans-btn"; b.disabled = false;
+            b.innerText = q.a[i]; b.className = "ans-btn"; b.disabled = false;
         }
         let t = 10.0;
         if (timer) clearInterval(timer);
         timer = setInterval(() => {
             t -= 0.1;
-            document.getElementById('timer-bar').style.width = (t * 10) + "%";
-            if (t <= 0) sendAns(-1);
+            document.getElementById('timer-bar').style.width = (t*10)+"%";
+            if (t <= 0) { clearInterval(timer); sendAns(-1); }
         }, 100);
     }
 
@@ -197,7 +244,7 @@
         const q = quiz[teams[myTeamId-1].qIdx % quiz.length];
         const isCorrect = (idx === q.c);
         if (idx !== -1) {
-            document.getElementById(`btn-${idx}`).classList.add(isCorrect ? 'correct' : 'wrong');
+            document.getElementById(`btn-${idx}`).className = "ans-btn " + (isCorrect?'correct':'wrong');
             if (!isCorrect) document.getElementById(`btn-${q.c}`).classList.add('correct');
         }
         document.querySelectorAll('.ans-btn').forEach(b => b.disabled = true);
@@ -205,60 +252,78 @@
     }
 
     function updateConsole() {
-        if (isPlayer) return;
         document.getElementById('team-list-ui').innerHTML = teams.map(t => `
             <div class="team-card ${t.count>=2?'ready':''}">
-                <b style="color:${t.color}">Team ${t.id}</b> | Score: ${t.mark}<br>
-                Status: ${t.count}/2 Players
+                <b style="color:${t.color}">TEAM ${t.id}</b> <span style="float:right">${t.mark}</span>
+                <div style="font-size:0.8rem; color:#888;">Players: ${t.count}/2</div>
             </div>
         `).join('');
     }
 
-    function joinTeam(id) {
-        myTeamId = id;
-        client.publish(`game/${ROOM_ID}/join`, JSON.stringify({ tId: id }));
-        showPage('player-view');
-        updatePlayerUI(teams[myTeamId-1]);
+    function startGame() { 
+        shuffleQuiz(); 
+        gameActive = true; 
+        togglePopup(); 
     }
 
-    function startGame() { gameActive = true; togglePopup(); }
+    function joinTeam(id) { myTeamId = id; client.publish(`game/${ROOM_ID}/join`, JSON.stringify({tId:id})); showPage('player-view'); }
     function togglePopup() { const p = document.getElementById('popup-panel'); p.style.display = p.style.display==='block'?'none':'block'; }
-    function showPage(id) { document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page')); document.getElementById(id).classList.add('active-page'); }
-
-    function renderQR() {
-        const path = window.location.origin + window.location.pathname + "?role=player";
-        new QRCode(document.getElementById('qrcode-area'), { text: path, width: 140, height: 140 });
+    function showPage(id) { document.querySelectorAll('.page').forEach(p=>p.classList.remove('active-page')); document.getElementById(id).classList.add('active-page'); }
+    function renderQR() { 
+        const url = window.location.origin + window.location.pathname + "?role=player";
+        new QRCode(document.getElementById('qrcode-area'), { text: url, width: 140, height: 140 }); 
     }
 
     window.onload = () => {
         if (isPlayer) {
             showPage('lobby-view');
             const grid = document.getElementById('team-grid');
-            for(let i=1; i<=8; i++) grid.innerHTML += `<button onclick="joinTeam(${i})" style="padding:20px; background:#222; color:white; border-radius:10px; border:1px solid #444; font-weight:bold; cursor:pointer;">Team ${i}</button>`;
+            for(let i=1; i<=8; i++) grid.innerHTML += `<button onclick="joinTeam(${i})" style="padding:25px; background:#333; color:white; border-radius:12px; font-weight:bold; border:none; cursor:pointer; font-size:1.2rem;">Team ${i}</button>`;
         } else {
             showPage('console-view');
-            initCanvas();
+            initRace();
         }
     };
 
-    function initCanvas() {
-        const can = document.getElementById('mainCanvas');
+    function initRace() {
+        const can = document.getElementById('raceCanvas');
         const ctx = can.getContext('2d');
         const resize = () => { can.width = can.parentElement.clientWidth; can.height = can.parentElement.clientHeight; };
         window.onresize = resize; resize();
-        function draw() {
-            ctx.clearRect(0,0,can.width,can.height);
+
+        function drawTrack() {
+            const laneH = can.height / 8;
+            for (let i = 0; i < 8; i++) {
+                ctx.fillStyle = i % 2 === 0 ? "#1e1e1e" : "#252525";
+                ctx.fillRect(0, i * laneH, can.width, laneH);
+                // 跑道分界
+                ctx.strokeStyle = "#333"; ctx.lineWidth = 1; ctx.strokeRect(0, i * laneH, can.width, laneH);
+                // 終點線
+                ctx.fillStyle = "#ff4757"; ctx.fillRect(can.width - 80, i*laneH, 10, laneH);
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, can.width, can.height);
+            drawTrack();
             teams.forEach((t, i) => {
                 if (t.count > 0) {
-                    const x = 60 + (t.mark % (can.width - 120));
-                    const y = (i+1) * (can.height / 9);
-                    ctx.fillStyle = t.color; ctx.beginPath(); ctx.arc(x, y, 22, 0, 7); ctx.fill();
-                    ctx.fillStyle = "white"; ctx.font = "bold 14px sans-serif"; ctx.fillText("T"+t.id, x-10, y+5);
+                    const laneH = can.height / 8;
+                    // 2000 分到達終點
+                    const targetX = 100 + (t.mark * ((can.width - 250) / 2000)); 
+                    t.currentX += (targetX - t.currentX) * 0.08;
+                    const y = (i * laneH) + (laneH / 2);
+                    
+                    ctx.shadowBlur = 15; ctx.shadowColor = t.color;
+                    ctx.fillStyle = t.color; ctx.beginPath(); ctx.arc(t.currentX, y, 22, 0, 7); ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = "white"; ctx.font = "bold 16px sans-serif"; ctx.textAlign="center";
+                    ctx.fillText("T"+t.id, t.currentX, y+6);
                 }
             });
-            requestAnimationFrame(draw);
+            requestAnimationFrame(animate);
         }
-        draw();
+        animate();
     }
 </script>
 </body>
