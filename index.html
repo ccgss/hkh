@@ -21,21 +21,24 @@
         .page { display: none; width: 100vw; height: 100vh; flex-direction: column; }
         .active-page { display: flex; }
 
-        /* --- 大螢幕 & 左側資訊欄 --- */
-        .top-bar { height: 80px; background: #000; display: flex; justify-content: space-between; align-items: center; padding: 0 40px; border-bottom: 4px solid var(--blue); box-shadow: 0 5px 25px rgba(0,255,255,0.3); flex-shrink: 0; }
-        #main-layout { display: flex; flex: 1; overflow: hidden; }
-        #sidebar { width: 320px; background: #111; border-right: 2px solid #333; padding: 15px; overflow-y: auto; }
+        /* --- 大螢幕 & 下方資訊欄 --- */
+        .top-bar { height: 80px; background: #000; display: flex; justify-content: space-between; align-items: center; padding: 0 40px; border-bottom: 4px solid var(--blue); box-shadow: 0 5px 25px rgba(0,255,255,0.3); flex-shrink: 0; z-index: 10; }
         
-        #playground { flex: 1; position: relative; background: #111; }
+        #main-layout { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+        
+        #playground { flex: 1; position: relative; background: #111; overflow: hidden; }
         canvas { width: 100%; height: 100%; display: block; }
         
-        .team-row { background: #1a1a1a; padding: 12px; margin-bottom: 10px; border-radius: 6px; border-left: 6px solid #444; transition: all 0.3s; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); }
+        #bottom-panel { width: 100%; background: #111; border-top: 2px solid #333; padding: 15px 25px; box-sizing: border-box; flex-shrink: 0; }
+        #team-list-ui { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+
+        .team-row { background: #1a1a1a; padding: 12px 15px; border-radius: 8px; border-left: 8px solid #444; transition: all 0.3s; box-shadow: 2px 2px 8px rgba(0,0,0,0.5); }
         .team-row.ready { background: #1a2a1a; }
         .team-row.locked { animation: pulse-gold 1s infinite alternate; background: #2a2510; }
         @keyframes pulse-gold { from { box-shadow: 0 0 5px var(--gold); } to { box-shadow: 0 0 20px var(--gold); } }
 
         /* --- 管理控制 --- */
-        #admin-tool { position: fixed; top: 15px; right: 20px; z-index: 1000; }
+        #admin-tool { position: fixed; top: 15px; right: 20px; z-index: 9999; }
         #gear-btn { width: 50px; height: 50px; background: var(--blue); border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; border: 2px solid #fff; font-size: 24px; box-shadow: 0 0 15px var(--blue); }
         #admin-panel { position: absolute; top: 65px; right: 0; width: 280px; background: var(--panel); border: 1px solid #444; border-radius: 12px; padding: 20px; display: none; }
 
@@ -75,8 +78,8 @@
             <div id="game-status" style="color:var(--gold); font-size:1.4rem; font-weight: bold;">CONNECTING TO NETWORK...</div>
         </header>
         <div id="main-layout">
-            <aside id="sidebar"><div id="team-list-ui"></div></aside>
             <main id="playground"><canvas id="raceCanvas"></canvas></main>
+            <aside id="bottom-panel"><div id="team-list-ui"></div></aside>
         </div>
     </div>
 
@@ -219,7 +222,6 @@
     // --- 連線事件綁定 ---
     client.on('connect', () => {
         if (!role) { 
-            document.getElementById('admin-tool').style.display = 'block';
             client.subscribe(`game/${ROOM_ID}/join`);
             client.subscribe(`game/${ROOM_ID}/submit`);
             // 主機每 500ms 廣播全域狀態
@@ -276,7 +278,7 @@
         }
     });
 
-    /** --- 左側狀態渲染 (Main/Sub) --- **/
+    /** --- 底部狀態渲染 (Main/Sub) --- **/
     function updateBigScreen() {
         const statusEl = document.getElementById('game-status');
         if (!isCanvas) {
@@ -303,8 +305,8 @@
             return `
                 <div class="team-row ${t.count>=2 ? 'ready' : ''} ${t.locked ? 'locked' : ''}" style="border-left-color:${t.color}">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <b style="color:${t.color}; font-size:1.2rem;">TEAM ${t.id}</b>
-                        <span style="font-size:1.4rem; font-weight:bold; color:var(--gold);">${t.mark}</span>
+                        <b style="color:${t.color}; font-size:1.1rem;">TEAM ${t.id}</b>
+                        <span style="font-size:1.3rem; font-weight:bold; color:var(--gold);">${t.mark}</span>
                     </div>
                     <div style="margin-top:6px; display:flex; justify-content:space-between; font-size:0.85rem; font-weight:bold;">
                         <span>Q: ${t.qIdx + 1}</span>
@@ -545,6 +547,11 @@
 
     // --- 程式進入點 ---
     window.addEventListener('load', () => {
+        // 確保管理員齒輪按鈕顯示
+        if (!role) {
+            document.getElementById('admin-tool').style.display = 'block';
+        }
+
         if (role === 'player') {
             const saved = localStorage.getItem('gp_reconnect_id');
             if (saved) { 
