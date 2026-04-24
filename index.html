@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>團隊問答競技場 - 修正版</title>
+    <title>團隊全能問答挑戰賽</title>
     <script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        :root { --bg: #000; --blue: #00ffff; --gold: #ffd700; --dark: #111; --panel: rgba(30, 30, 30, 0.98); }
+        :root { --bg: #000; --blue: #00ffff; --gold: #ffd700; --panel: rgba(25, 25, 25, 0.98); }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: white; font-family: "Microsoft JhengHei", sans-serif; overflow: hidden; }
         
         .page { display: none; width: 100vw; height: 100vh; flex-direction: column; }
@@ -15,38 +15,29 @@
 
         /* --- 主螢幕懸浮選單 --- */
         #menu-wrapper { position: fixed; top: 20px; right: 20px; z-index: 1000; display: none; }
-        #menu-trigger { 
-            width: 55px; height: 55px; background: var(--blue); border-radius: 50%; 
-            display: flex; justify-content: center; align-items: center; cursor: pointer;
-            box-shadow: 0 0 15px var(--blue); border: 2px solid #fff; font-size: 24px;
-        }
-        #popup-panel { 
-            position: absolute; top: 65px; right: 0; width: 260px; background: var(--panel); 
-            border-radius: 12px; border: 1px solid #555; padding: 20px; display: none;
-            backdrop-filter: blur(10px); box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-        }
-        .popup-section { margin-bottom: 15px; text-align: center; }
-        .popup-section h4 { margin: 0 0 10px 0; color: var(--blue); border-bottom: 1px solid #444; }
-        .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .m-btn { padding: 8px; background: #444; border: none; color: white; border-radius: 5px; cursor: pointer; }
-        .m-btn.active { background: var(--blue); color: #000; font-weight: bold; }
+        #menu-trigger { width: 55px; height: 55px; background: var(--blue); border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; border: 2px solid #fff; font-size: 24px; box-shadow: 0 0 15px var(--blue); }
+        #popup-panel { position: absolute; top: 65px; right: 0; width: 280px; background: var(--panel); border-radius: 12px; border: 1px solid #555; padding: 20px; display: none; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
+        .popup-section { margin-bottom: 20px; text-align: center; }
+        .start-btn { width: 100%; padding: 15px; background: #ff4757; color: white; border: none; border-radius: 8px; font-size: 1.2rem; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .start-btn:disabled { background: #444; }
 
         /* --- 主螢幕佈局 --- */
         #game-header { height: 80px; background: #0a0a0a; display: flex; align-items: center; padding: 0 30px; border-bottom: 2px solid #333; }
         #main-layout { display: flex; flex: 1; overflow: hidden; }
         #player-section { width: 260px; background: #151515; padding: 15px; border-right: 2px solid #333; overflow-y: auto; }
-        #playground-container { flex: 1; position: relative; background: #000; }
+        #playground-container { flex: 1; position: relative; }
         canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; }
         canvas.active-canvas { display: block; }
 
         /* 團隊卡片 */
-        .team-card { background: #252525; padding: 15px; margin-bottom: 12px; border-radius: 10px; border-left: 10px solid #444; transition: 0.3s; }
-        .team-active { border-left-color: var(--blue); }
-        .team-ready { border-left-color: #00ff00; background: rgba(0,255,0,0.05); }
+        .team-card { background: #252525; padding: 12px; margin-bottom: 10px; border-radius: 8px; border-left: 10px solid #444; }
+        .team-ready { border-left-color: #00ff00; }
 
-        /* iPad 樣式 */
-        .ans-btn { border: none; border-radius: 15px; font-size: 1.8rem; font-weight: bold; color: white; }
-        .btn-0 { background: #ff4757; } .btn-1 { background: #2e86de; } .btn-2 { background: #2ed573; } .btn-3 { background: #ffa502; }
+        /* --- iPad 答題介面 --- */
+        .info-bar { height: 60px; background: #1a1a1a; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; border-bottom: 2px solid var(--blue); }
+        .q-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 30px; text-align: center; }
+        .ans-grid { height: 320px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 20px; background: #0a0a0a; }
+        .ans-btn { border: none; border-radius: 15px; font-size: 1.5rem; font-weight: bold; color: white; }
     </style>
 </head>
 <body>
@@ -59,10 +50,14 @@
                 <div id="qrcode" style="background:white; padding:8px; display:inline-block;"></div>
             </div>
             <div class="popup-section">
-                <h4>模式切換</h4>
-                <div class="mode-grid">
-                    <button id="m-neon" class="m-btn active" onclick="switchMode('neon')">霓虹</button>
-                    <button id="m-pnb" class="m-btn" onclick="switchMode('pnb')">包山</button>
+                <h4>遊戲控制</h4>
+                <button id="start-game-btn" class="start-btn" onclick="startGame()">開始遊戲 START</button>
+            </div>
+            <div class="popup-section">
+                <h4>賽道切換</h4>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;">
+                    <button onclick="switchMode('neon')" style="padding:5px;">霓虹</button>
+                    <button onclick="switchMode('pnb')" style="padding:5px;">包山</button>
                 </div>
             </div>
         </div>
@@ -70,14 +65,13 @@
 
     <div id="console-view" class="page">
         <header id="game-header">
-            <h1 id="game-title" style="margin:0; color:var(--blue);">TEAM QUIZ ARENA</h1>
-            <div style="margin-left: auto; color:#888;">連線狀態: <span id="conn-info" style="color:var(--blue)">連線中...</span></div>
+            <h1 style="color:var(--blue); margin:0;">TEAM KNOWLEDGE RACE</h1>
+            <div style="margin-left:auto;"><span id="game-status">等待玩家準備...</span></div>
         </header>
         <div id="main-layout">
             <aside id="player-section">
-                <h3 style="margin-top:0;">隊伍即時資訊</h3>
-                <div id="player-list">
-                    </div>
+                <h3>隊伍進度</h3>
+                <div id="player-list"></div>
             </aside>
             <main id="playground-container">
                 <canvas id="canvasNeon"></canvas>
@@ -87,65 +81,77 @@
     </div>
 
     <div id="lobby-view" class="page" style="align-items:center; justify-content:center;">
-        <h1 style="color:var(--blue)">請選擇隊伍</h1>
-        <div id="team-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:15px; width:80%;"></div>
+        <h1 style="color:var(--blue)">選擇您的隊伍</h1>
+        <div id="team-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:20px; width:85%;"></div>
     </div>
 
     <div id="waiting-view" class="page" style="align-items:center; justify-content:center;">
-        <h2>等待隊友加入...</h2>
+        <h2 id="wait-msg">已進入隊伍，等待管理員開始...</h2>
     </div>
 
     <div id="player-view" class="page">
-        <div style="padding:20px; display:flex; justify-content:space-between; background:#1a1a1a;">
-            <span id="p-team-name" style="color:var(--blue); font-weight:bold;">隊伍 X</span>
-            <button onclick="alert('語言切換功能已就緒')">繁 / 簡</button>
+        <div class="info-bar">
+            <div><b id="p-team-label">隊伍 X</b> | <small id="p-num-label">玩家 Y</small></div>
+            <button onclick="toggleLang()" style="border-radius:10px; background:#444; color:white; border:none; padding:5px 10px;">繁/簡</button>
         </div>
-        <div id="q-text" style="flex:1; display:flex; justify-content:center; align-items:center; padding:30px; font-size:2rem; text-align:center;">題目加載中...</div>
-        <div style="height:300px; display:grid; grid-template-columns:1fr 1fr; gap:15px; padding:20px;">
-            <button class="ans-btn btn-0" onclick="submitAnswer(0)">A</button>
-            <button class="ans-btn btn-1" onclick="submitAnswer(1)">B</button>
-            <button class="ans-btn btn-2" onclick="submitAnswer(2)">C</button>
-            <button class="ans-btn btn-3" onclick="submitAnswer(3)">D</button>
+        <div class="q-area">
+            <div id="q-category" style="color:var(--gold); font-size:1rem; margin-bottom:10px;">CATEGORY</div>
+            <div id="q-text" style="font-size:1.8rem; font-weight:bold;">題目加載中...</div>
+        </div>
+        <div class="ans-grid">
+            <button class="ans-btn" style="background:#ff4757" onclick="submitAns(0)" id="opt0">A</button>
+            <button class="ans-btn" style="background:#2e86de" onclick="submitAns(1)" id="opt1">B</button>
+            <button class="ans-btn" style="background:#2ed573" onclick="submitAns(2)" id="opt2">C</button>
+            <button class="ans-btn" style="background:#ffa502" onclick="submitAns(3)" id="opt3">D</button>
         </div>
     </div>
 
 <script>
-    const ROOM_ID = "QUIZ_FIXED_2026";
+    // --- 數據定義 ---
+    const ROOM_ID = "GLOBAL_TEAM_BATTLE_2026";
     const BROKER = "wss://broker.emqx.io:8084/mqtt";
     const client = mqtt.connect(BROKER);
     const urlParams = new URLSearchParams(window.location.search);
     const role = (urlParams.get('role') || "").toLowerCase();
 
+    let isGameStarted = false;
     let currentGameMode = 'neon';
     let myTeamId = null;
-    let currentQIdx = 0;
-    
-    // 初始化隊伍數據
-    let teams = Array.from({length: 8}, (_, i) => ({ 
-        id: i+1, count: 0, mark: 0, color: `hsl(${i*45}, 100%, 65%)` 
-    }));
+    let myPlayerNum = 0;
+    let myQIdx = 0; // 每個隊伍獨立的進度
 
-    // 1. 立即初始化 UI (解決主控台沒資訊的問題)
-    function initTeamCards() {
-        const list = document.getElementById('player-list');
-        if (!list) return;
-        list.innerHTML = teams.map(t => `
-            <div id="card-t-${t.id}" class="team-card">
-                <strong style="color:${t.color}">隊伍 ${t.id}</strong><br>
-                <span class="count-text">等待玩家... (0/2)</span>
-            </div>
-        `).join('');
-    }
+    // 題庫 (共 60 題)
+    const questions = [
+        // IQ (10 題範例，可自行擴充至 40)
+        { c: "IQ 邏輯", q: "什麼東西有牙齒卻不能咬東西？", a: ["梳子", "鋸子", "拉鍊", "老虎"], correct: 0 },
+        { c: "IQ 邏輯", q: "什麼人每天靠運氣賺錢？", a: ["賭徒", "司機", "煤氣工人", "抽獎員"], correct: 2 },
+        // Maths (10 題)
+        { c: "數學", q: "123 + 456 = ?", a: ["579", "589", "569", "599"], correct: 0 },
+        { c: "數學", q: "15 x 6 = ?", a: ["80", "90", "100", "75"], correct: 1 },
+        // Chinese History (10 題)
+        { c: "中史", q: "建立秦朝的皇帝是誰？", a: ["漢武帝", "秦始皇", "唐太宗", "康熙"], correct: 1 },
+        { c: "中史", q: "三國時代中，哪一位以「仁德」著稱？", a: ["曹操", "孫權", "劉備", "呂布"], correct: 2 },
+        // English (10 題)
+        { c: "English", q: "How do you spell the fruit '香蕉'?", a: ["Banana", "Bannana", "Banane", "Bananar"], correct: 0 },
+        { c: "English", q: "Correct spelling of '電腦'?", a: ["Computar", "Computer", "Compoter", "Conputer"], correct: 1 },
+        // ICT (30 題範例)
+        { c: "ICT", q: "HTML 中的 'H' 代表什麼？", a: ["High", "Hyper", "Home", "Hard"], correct: 1 },
+        { c: "ICT", q: "下列哪一個是操作系統？", a: ["Excel", "Windows", "Chrome", "Python"], correct: 1 }
+        // ... 此處簡略，開發者可按此格式補足至 60 題
+    ];
 
+    let teams = Array.from({length: 8}, (_, i) => ({ id: i+1, count: 0, mark: 0, color: `hsl(${i*45}, 100%, 65%)` }));
+
+    // --- MQTT & 遊戲邏輯 ---
     client.on('connect', () => {
-        document.getElementById('conn-info').innerText = "已連線";
         if (role === 'main') {
             document.getElementById('menu-wrapper').style.display = 'block';
             client.subscribe(`game/${ROOM_ID}/join`);
             client.subscribe(`game/${ROOM_ID}/ans`);
-            setInterval(broadcast, 300);
+            setInterval(() => client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ isGameStarted, mode: currentGameMode, teams })), 400);
         } else {
             client.subscribe(`game/${ROOM_ID}/state`);
+            client.subscribe(`game/${ROOM_ID}/start_signal`);
         }
     });
 
@@ -153,47 +159,75 @@
         const data = JSON.parse(msg.toString());
         if (topic.endsWith('/state')) {
             teams = data.teams;
-            currentQIdx = data.qIdx;
+            isGameStarted = data.isGameStarted;
             updateUI();
-            if (myTeamId && teams[myTeamId-1].count >= 2) showPage('player-view');
+            if (isGameStarted && myTeamId && teams[myTeamId-1].count >= 2) {
+                showPage('player-view');
+                renderQuestion();
+            }
+        } else if (topic.endsWith('/start_signal')) {
+            isGameStarted = true;
         } else if (role === 'main') {
             if (topic.endsWith('/join')) {
                 let t = teams[data.teamId-1];
                 if (t && t.count < 2) {
                     t.count++;
-                    updateUI(); // 收到訊息立即更新本地 UI
                     client.publish(`game/${ROOM_ID}/join_confirm/${data.uid}`, JSON.stringify({ pNum: t.count }));
+                    updateUI();
                 }
             } else if (topic.endsWith('/ans')) {
-                // 答題邏輯...
-                teams[data.teamId-1].mark += 50;
+                let t = teams[data.teamId-1];
+                if (data.isCorrect) t.mark += 100; // 答對前進
                 updateUI();
             }
         }
     });
 
-    function broadcast() {
-        client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ mode: currentGameMode, teams, qIdx: currentQIdx }));
+    function startGame() {
+        isGameStarted = true;
+        client.publish(`game/${ROOM_ID}/start_signal`, JSON.stringify({ start: true }));
+        document.getElementById('game-status').innerText = "遊戲進行中...";
+        togglePopup();
     }
 
-    function updateUI() {
-        // 更新側邊欄卡片狀態
-        teams.forEach(t => {
-            const card = document.getElementById(`card-t-${t.id}`);
-            if (card) {
-                card.className = `team-card ${t.count === 2 ? 'team-ready' : (t.count === 1 ? 'team-active' : '')}`;
-                card.querySelector('.count-text').innerText = `已加入: ${t.count}/2 人`;
-            }
-        });
+    function renderQuestion() {
+        const q = questions[myQIdx % questions.length];
+        document.getElementById('q-category').innerText = `[ ${q.c} ] 第 ${myQIdx + 1} 題`;
+        document.getElementById('q-text').innerText = q.q;
+        for(let i=0; i<4; i++) document.getElementById(`opt${i}`).innerText = q.a[i];
+    }
 
-        // iPad 隊伍按鈕
+    function submitAns(idx) {
+        const isCorrect = (idx === questions[myQIdx % questions.length].correct);
+        client.publish(`game/${ROOM_ID}/ans`, JSON.stringify({ teamId: myTeamId, isCorrect }));
+        myQIdx++; // 獨立前進下一題
+        renderQuestion();
+    }
+
+    // --- UI 控制 ---
+    function updateUI() {
+        const list = document.getElementById('player-list');
+        if (list) {
+            list.innerHTML = teams.map(t => `
+                <div class="team-card ${t.count===2?'team-ready':''}">
+                    <strong style="color:${t.color}">隊伍 ${t.id}</strong><br>
+                    狀態: ${t.count}/2 | 分數: ${t.mark}
+                </div>
+            `).join('');
+        }
+        
         const grid = document.getElementById('team-grid');
         if (grid && grid.children.length === 0) {
             teams.forEach(t => {
                 const b = document.createElement('button');
-                b.style.cssText = "padding:20px; background:#222; color:white; border:1px solid #444; border-radius:10px;";
+                b.style.cssText = "padding:20px; background:#222; color:white; border-radius:10px; border:1px solid #444;";
                 b.innerText = `隊伍 ${t.id}`;
-                b.onclick = () => joinTeam(t.id);
+                b.onclick = () => {
+                    myTeamId = t.id;
+                    const uid = Math.random().toString(16).substr(2,8);
+                    client.publish(`game/${ROOM_ID}/join`, JSON.stringify({ teamId: t.id, uid }));
+                    showPage('waiting-view');
+                };
                 grid.appendChild(b);
             });
         }
@@ -206,37 +240,20 @@
 
     function switchMode(m) {
         currentGameMode = m;
-        document.getElementById('canvasNeon').classList.toggle('active-canvas', m === 'neon');
-        document.getElementById('canvasPnb').classList.toggle('active-canvas', m === 'pnb');
-        document.getElementById('m-neon').classList.toggle('active', m === 'neon');
-        document.getElementById('m-pnb').classList.toggle('active', m === 'pnb');
-        togglePopup();
-    }
-
-    function joinTeam(id) {
-        myTeamId = id;
-        const uid = Math.random().toString(16).substr(2,8);
-        client.publish(`game/${ROOM_ID}/join`, JSON.stringify({ teamId: id, uid }));
-        showPage('waiting-view');
-    }
-
-    function submitAnswer(idx) {
-        client.publish(`game/${ROOM_ID}/ans`, JSON.stringify({ teamId: myTeamId, ans: idx }));
+        document.getElementById('canvasNeon').style.display = m==='neon'?'block':'none';
+        document.getElementById('canvasPnb').style.display = m==='pnb'?'block':'none';
     }
 
     function showPage(id) { document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page')); document.getElementById(id).classList.add('active-page'); }
 
-    // 繪圖與初始化
+    // --- 初始化 ---
     window.onload = () => {
-        initTeamCards(); // 頁面加載完成立即生成隊伍資訊
         if (role !== 'player') {
             showPage('console-view');
-            new QRCode(document.getElementById("qrcode"), { 
-                text: window.location.origin + window.location.pathname + "?role=player", 
-                width: 140, height: 140 
-            });
-            // 初始化畫布引擎 (代碼略，與之前相同)
+            new QRCode(document.getElementById("qrcode"), { text: window.location.origin + window.location.pathname + "?role=player", width: 140, height: 140 });
             initCanvas();
+            switchMode('neon');
+            updateUI();
         } else {
             showPage('lobby-view');
         }
@@ -254,9 +271,10 @@
             ctx.clearRect(0, 0, can.width, can.height);
             teams.forEach((t, i) => {
                 if (t.count > 0) {
-                    const x = can.width - (t.mark % can.width);
+                    const x = 50 + (t.mark % (can.width - 100)); // 根據分數移動
                     ctx.fillStyle = t.color;
                     ctx.beginPath(); ctx.arc(x, (i+1)*(can.height/9), 20, 0, 7); ctx.fill();
+                    ctx.fillStyle = "white"; ctx.fillText(t.id, x-5, (i+1)*(can.height/9)+5);
                 }
             });
             requestAnimationFrame(render);
