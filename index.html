@@ -3,59 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Grand Prix Quiz Pro - 60 Questions Edition</title>
+    <title>Grand Prix Pro - Ultimate Racing Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        :root { --bg: #121212; --blue: #00ffff; --gold: #ffd700; --red: #ff4757; --green: #2ed573; --panel: rgba(25, 25, 25, 0.98); }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: white; font-family: "Microsoft JhengHei", sans-serif; overflow: hidden; }
+        :root { --bg: #0a0a0a; --blue: #00ffff; --gold: #ffd700; --red: #ff4757; --green: #2ed573; --panel: rgba(15, 15, 15, 0.98); }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: white; font-family: "Segoe UI", "Microsoft JhengHei", sans-serif; overflow: hidden; }
         
         .page { display: none; width: 100vw; height: 100vh; flex-direction: column; }
         .active-page { display: flex; }
 
-        /* 主控台大螢幕 */
-        .top-bar { height: 70px; background: #000; display: flex; justify-content: space-between; align-items: center; padding: 0 30px; border-bottom: 3px solid var(--blue); }
+        /* --- 大螢幕樣式 (Main & Sub) --- */
+        .top-bar { height: 80px; background: #000; display: flex; justify-content: space-between; align-items: center; padding: 0 40px; border-bottom: 4px solid var(--blue); box-shadow: 0 5px 25px rgba(0,255,255,0.3); }
         #main-layout { display: flex; flex: 1; overflow: hidden; }
-        #sidebar { width: 280px; background: #111; border-right: 2px solid #333; padding: 20px; }
-        .team-card { background: #222; padding: 12px; margin-bottom: 10px; border-radius: 8px; border-left: 8px solid #444; font-size: 1.1rem; }
-        .team-card.ready { border-left-color: var(--green); background: #1a2a1a; }
+        #sidebar { width: 340px; background: #111; border-right: 2px solid #333; padding: 20px; overflow-y: auto; }
         
-        #playground { flex: 1; position: relative; background: #1a1a1a; }
+        .team-row { background: #1a1a1a; padding: 15px; margin-bottom: 12px; border-radius: 10px; border-left: 8px solid #444; transition: all 0.3s; }
+        .team-row.ready { border-left-color: var(--green); background: #1a2a1a; }
+        
+        #playground { flex: 1; position: relative; background: #111; }
         canvas { width: 100%; height: 100%; display: block; }
 
-        /* 管理員選單 */
-        #menu-wrapper { position: fixed; top: 15px; right: 20px; z-index: 1000; }
-        #menu-trigger { width: 50px; height: 50px; background: var(--blue); border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; border: 2px solid #fff; font-size: 24px; box-shadow: 0 0 15px var(--blue); }
-        #popup-panel { position: absolute; top: 60px; right: 0; width: 260px; background: var(--panel); border-radius: 15px; border: 1px solid #444; padding: 20px; display: none; }
+        /* --- 管理控制 --- */
+        #admin-tool { position: fixed; top: 15px; right: 20px; z-index: 1000; }
+        #gear-btn { width: 50px; height: 50px; background: var(--blue); border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; border: 2px solid #fff; font-size: 24px; box-shadow: 0 0 15px var(--blue); }
+        #admin-panel { position: absolute; top: 65px; right: 0; width: 280px; background: var(--panel); border: 1px solid #444; border-radius: 12px; padding: 20px; display: none; }
 
-        /* iPad 玩家介面 */
-        .timer-wrap { width: 100%; height: 12px; background: #333; }
+        /* --- iPad 玩家樣式 --- */
+        .timer-wrap { width: 100%; height: 15px; background: #222; }
         #timer-bar { height: 100%; width: 100%; background: var(--red); transition: width 0.1s linear; }
-        .q-display { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 30px; text-align: center; }
+        .q-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 30px; text-align: center; }
         .ans-grid { height: 380px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 20px; }
-        .ans-btn { border: none; border-radius: 15px; font-size: 1.8rem; font-weight: bold; color: white; background: #333; cursor: pointer; }
+        .ans-btn { border: none; border-radius: 15px; font-size: 1.8rem; font-weight: bold; color: white; background: #333; cursor: pointer; transition: 0.2s; }
         .ans-btn:active { transform: scale(0.95); }
-        .ans-btn.correct { background: var(--green) !important; box-shadow: 0 0 20px var(--green); }
+        .ans-btn.correct { background: var(--green) !important; }
         .ans-btn.wrong { background: var(--red) !important; }
 
-        /* 遮罩訊息 */
-        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: none; z-index: 100; justify-content: center; align-items: center; text-align: center; padding: 30px; }
+        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.96); display: none; z-index: 2000; justify-content: center; align-items: center; text-align: center; }
+        #overlay-msg { font-size: 2.5rem; color: var(--gold); font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div id="menu-wrapper" style="display:none;">
-        <div id="menu-trigger" onclick="togglePopup()">⚙️</div>
-        <div id="popup-panel">
-            <div id="qrcode-area" style="background:white; padding:10px; margin-bottom:15px; display: flex; justify-content: center;"></div>
-            <button onclick="startGame()" style="width:100%; padding:15px; background:var(--red); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; font-size: 1rem;">START GAME (Shuffle)</button>
+    <div id="admin-tool" style="display:none;">
+        <div id="gear-btn" onclick="toggleAdmin()">⚙️</div>
+        <div id="admin-panel">
+            <div id="qrcode-area" style="background:white; padding:10px; margin-bottom:15px; display:flex; justify-content:center;"></div>
+            <button onclick="startGame()" style="width:100%; padding:12px; background:var(--red); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">START GAME</button>
+            <button onclick="if(confirm('Reset all?')) location.reload()" style="width:100%; padding:10px; background:#444; color:white; border:none; border-radius:8px; margin-top:10px; cursor:pointer;">RESET ALL</button>
         </div>
     </div>
 
     <div id="console-view" class="page">
         <header class="top-bar">
-            <h2 style="color:var(--blue); margin:0; letter-spacing: 2px;">TEAM RACING ARENA</h2>
-            <div id="status-text" style="color:var(--gold); font-weight: bold;">WAITING FOR TEAMS...</div>
+            <h2 id="title-text" style="color:var(--blue); margin:0; letter-spacing: 2px;">TEAM RACING CHAMPIONSHIP</h2>
+            <div id="game-status" style="color:var(--gold); font-size:1.4rem; font-weight: bold;">WAITING FOR TEAMS...</div>
         </header>
         <div id="main-layout">
             <aside id="sidebar"><div id="team-list-ui"></div></aside>
@@ -64,18 +66,18 @@
     </div>
 
     <div id="lobby-view" class="page" style="justify-content:center; align-items:center;">
-        <h1 style="color:var(--blue); font-size: 3.5rem; margin-bottom: 40px;">選擇隊伍</h1>
-        <div id="team-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:20px; width:85%;"></div>
+        <h1 style="color:var(--blue); font-size:3rem; margin-bottom:40px;">SELECT YOUR TEAM</h1>
+        <div id="team-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:20px; width:90%;"></div>
     </div>
 
     <div id="player-view" class="page">
-        <div id="overlay"><div id="overlay-msg" style="font-size:2.5rem; color:var(--gold); font-weight:bold;"></div></div>
+        <div id="overlay"><div id="overlay-msg"></div></div>
         <div class="top-bar">
-            <div id="ui-team" style="font-size:1.8rem; font-weight:bold; color:var(--blue);">Team --</div>
-            <div id="ui-score" style="font-size:1.8rem;">Score: 0</div>
+            <div id="ui-team" style="font-size:1.6rem; font-weight:bold; color:var(--blue);">Team --</div>
+            <div id="ui-score" style="font-size:1.6rem;">Score: 0</div>
         </div>
         <div class="timer-wrap"><div id="timer-bar"></div></div>
-        <div class="q-display"><div id="ui-q" style="font-size:2.2rem; font-weight:bold;">準備中...</div></div>
+        <div class="q-area"><div id="ui-q" style="font-size:2.2rem; font-weight:bold;">Waiting...</div></div>
         <div class="ans-grid">
             <button class="ans-btn" onclick="sendAns(0)" id="btn-0">A</button>
             <button class="ans-btn" onclick="sendAns(1)" id="btn-1">B</button>
@@ -85,96 +87,50 @@
     </div>
 
 <script>
-    const ROOM_ID = "TEAM_QUIZ_FINAL_PRO_8";
+    const ROOM_ID = "GP_TEAM_BATTLE_2026_FINAL";
     const BROKER = "wss://broker.emqx.io:8084/mqtt";
+    const urlParams = new URLSearchParams(window.location.search);
+    const role = urlParams.get('role'); // player, console, or null(Main)
+    
     const client = mqtt.connect(BROKER);
-    const isPlayer = new URLSearchParams(window.location.search).get('role') === 'player';
-
-    // 60 題中英雙語題庫
+    
+    // 預設 20 題庫（範例），可自行擴充至 60 題
     let quiz = [
         { q: "太陽系中哪顆行星被稱為「紅色星球」？", a: ["金星", "火星", "木星", "土星"], c: 1 },
-        { q: "請問水的沸點在標準大氣壓下是多少度？", a: ["90°C", "100°C", "110°C", "120°C"], c: 1 },
+        { q: "Which gas do plants absorb during photosynthesis?", a: ["Oxygen", "Nitrogen", "CO2", "Hydrogen"], c: 2 },
         { q: "人體最大的器官是什麼？", a: ["心臟", "肝臟", "皮膚", "肺"], c: 2 },
-        { q: "哪種氣體是植物進行光合作用時吸收的？", a: ["氧氣", "氮氣", "二氧化碳", "氫氣"], c: 2 },
-        { q: "世界上最小的國家是哪一個？", a: ["摩納哥", "梵蒂岡", "馬爾他", "新加坡"], c: 1 },
-        { q: "一小時有多少秒？", a: ["360秒", "3600秒", "60秒", "600秒"], c: 1 },
-        { q: "哪種金屬在常溫下是液態的？", a: ["金", "汞", "銀", "銅"], c: 1 },
-        { q: "著名的「蒙娜麗莎」是誰的作品？", a: ["梵谷", "畢卡索", "達文西", "莫內"], c: 2 },
-        { q: "蜘蛛有多少條腿？", a: ["6條", "8條", "10條", "12條"], c: 1 },
-        { q: "哪種鳥類不會飛行？", a: ["老鷹", "企鵝", "鸚鵡", "麻雀"], c: 1 },
-        { q: "澳洲的代表性動物是什麼？", a: ["大象", "袋鼠", "獅子", "熊貓"], c: 1 },
-        { q: "「沙漠之舟」是指哪種動物？", a: ["馬", "駱駝", "驢子", "大象"], c: 1 },
-        { q: "誰發明了電燈泡？", a: ["特斯拉", "愛迪生", "牛頓", "愛因斯坦"], c: 1 },
-        { q: "一年當中有幾個月有 31 天？", a: ["5個", "6個", "7個", "8個"], c: 2 },
-        { q: "日本的國花是什麼？", a: ["梅花", "牡丹", "櫻花", "蓮花"], c: 2 },
-        { q: "下列哪個國家位於北美洲？", a: ["巴西", "加拿大", "埃及", "泰國"], c: 1 },
-        { q: "電腦的運算核心縮寫是什麼？", a: ["RAM", "GPU", "CPU", "SSD"], c: 2 },
-        { q: "哪種氣體佔大氣層比例最高？", a: ["氧氣", "氮氣", "氫氣", "氦氣"], c: 1 },
-        { q: "三角形的內角和是多少度？", a: ["90度", "180度", "270度", "360度"], c: 1 },
-        { q: "請問 1 分鐘有多少毫秒？", a: ["6000", "60000", "600", "600000"], c: 1 },
-        { q: "「詩仙」是指哪位唐代詩人？", a: ["李白", "杜甫", "王維", "白居易"], c: 0 },
-        { q: "奧運五環中，藍色環代表哪個洲？", a: ["亞洲", "歐洲", "非洲", "美洲"], c: 1 },
-        { q: "聲音在什麼介質中傳播最快？", a: ["空氣", "水", "真空", "固體"], c: 3 },
-        { q: "下列哪一個是可再生能源？", a: ["石油", "煤炭", "太陽能", "天然氣"], c: 2 },
-        { q: "請問 12 乘 12 等於多少？", a: ["124", "144", "164", "184"], c: 1 },
-        { q: "誰提出了相對論？", a: ["牛頓", "居禮夫人", "愛因斯坦", "霍金"], c: 2 },
-        { q: "恐龍是在哪個時代滅絕的？", a: ["白堊紀", "侏羅紀", "三疊紀", "寒武紀"], c: 0 },
-        { q: "蜜蜂採蜜是為了製造什麼？", a: ["水", "花粉", "蜂蜜", "蜂蠟"], c: 2 },
-        { q: "地圖上的藍色通常代表什麼？", a: ["森林", "沙漠", "海洋", "城市"], c: 2 },
-        { q: "哪種物質是「萬能溶劑」？", a: ["酒精", "汽油", "水", "醋"], c: 2 },
-        // --- 英文學科 (English) ---
-        { q: "Which word is a synonym of 'HAPPY'?", a: ["Sad", "Angry", "Joyful", "Sleepy"], c: 2 },
-        { q: "Choose the correct past tense of 'GO'.", a: ["Went", "Gone", "Goes", "Going"], c: 0 },
-        { q: "Which is an example of an ADJECTIVE?", a: ["Run", "Beautiful", "Quickly", "Apple"], c: 1 },
-        { q: "What is the opposite of 'FAST'?", a: ["Quick", "Slow", "High", "Deep"], c: 1 },
-        { q: "Finish the sentence: She ____ a teacher.", a: ["am", "is", "are", "be"], c: 1 },
-        { q: "Which word is the odd one out?", a: ["Table", "Chair", "Desk", "Banana"], c: 3 },
-        { q: "What is a baby dog called?", a: ["Kitten", "Cub", "Puppy", "Calf"], c: 2 },
-        { q: "Identify the plural form of 'MOUSE'.", a: ["Mouses", "Mice", "Mices", "Mouse"], c: 1 },
+        { q: "What is 15 + 25?", a: ["30", "35", "40", "45"], c: 2 },
         { q: "Which month comes after JULY?", a: ["June", "August", "September", "May"], c: 1 },
-        { q: "I ____ breakfast every morning.", a: ["eat", "eats", "eating", "ate"], c: 0 },
-        { q: "Which is a 'FRUIT'?", a: ["Carrot", "Cabbage", "Orange", "Onion"], c: 2 },
-        { q: "What is the collective noun for birds?", a: ["Herd", "Flock", "Pack", "School"], c: 1 },
-        { q: "Which spelling is correct?", a: ["Receve", "Receive", "Recieve", "Receiv"], c: 1 },
-        { q: "What is the comparative of 'GOOD'?", a: ["Gooder", "Best", "Better", "Well"], c: 2 },
-        { q: "A person who flies an airplane is a...?", a: ["Doctor", "Driver", "Pilot", "Chef"], c: 2 },
-        { q: "Choose the correct article: __ apple a day.", a: ["A", "An", "The", "No article"], c: 1 },
-        { q: "Which word describes a 'PERSON'?", a: ["He", "It", "They", "We"], c: 0 },
-        { q: "What do you use to cut paper?", a: ["Knife", "Scissors", "Pencil", "Spoon"], c: 1 },
-        { q: "How do you say '謝謝' in English?", a: ["Please", "Sorry", "Thank you", "Hello"], c: 2 },
-        { q: "Which is a 'VERB'?", a: ["Book", "Jump", "Yellow", "House"], c: 1 },
-        { q: "What is the capital letter of 'b'?", a: ["D", "P", "B", "Q"], c: 2 },
-        { q: "Which animal says 'Meow'?", a: ["Dog", "Cat", "Cow", "Pig"], c: 1 },
-        { q: "Where does a 'FISH' live?", a: ["Forest", "Sky", "Water", "Desert"], c: 2 },
-        { q: "Which number is 'THIRTEEN'?", a: ["3", "30", "13", "31"], c: 2 },
-        { q: "What color is a 'LEMON'?", a: ["Red", "Purple", "Yellow", "Blue"], c: 2 },
-        { q: "Which is a 'WILD ANIMAL'?", a: ["Cat", "Tiger", "Sheep", "Chicken"], c: 1 },
-        { q: "How many days are in a 'WEEK'?", a: ["5", "6", "7", "10"], c: 2 },
-        { q: "Which is NOT a weekday?", a: ["Monday", "Friday", "Sunday", "Tuesday"], c: 2 },
-        { q: "The sun rises in the ____.", a: ["West", "North", "South", "East"], c: 3 },
-        { q: "Which is a 'TRANSPORT'?", a: ["Bed", "Bicycle", "Bread", "Box"], c: 1 }
+        { q: "「詩聖」是指哪位唐代詩人？", a: ["李白", "杜甫", "白居易", "王維"], c: 1 },
+        { q: "How many legs does a spider have?", a: ["6", "8", "10", "12"], c: 1 },
+        { q: "Water boils at how many degrees Celsius?", a: ["90°C", "100°C", "110°C", "120°C"], c: 1 },
+        { q: "三角形的內角和是多少度？", a: ["90", "180", "270", "360"], c: 1 },
+        { q: "Opposite of 'FAST' is?", a: ["Quick", "Slow", "High", "Deep"], c: 1 },
+        { q: "日本的國花是什麼？", a: ["梅花", "牡丹", "櫻花", "蓮花"], c: 2 },
+        { q: "Choose the correct past tense of 'GO'.", a: ["Went", "Gone", "Goes", "Going"], c: 0 },
+        { q: "指南針的 N 極指向哪個方向？", a: ["南方", "西方", "東方", "北方"], c: 3 },
+        { q: "What is the capital of France?", a: ["London", "Berlin", "Madrid", "Paris"], c: 3 },
+        { q: "哪種金屬在常溫下是液態的？", a: ["金", "汞", "銀", "銅"], c: 1 },
+        { q: "7 multiplied by 8 equals?", a: ["54", "56", "58", "60"], c: 1 },
+        { q: "「沙漠之舟」是指哪種動物？", a: ["馬", "駱駝", "驢子", "大象"], c: 1 },
+        { q: "Identify the plural form of 'MOUSE'.", a: ["Mouses", "Mice", "Mices", "Mouse"], c: 1 },
+        { q: "澳洲的代表性動物是什麼？", a: ["大象", "袋鼠", "獅子", "熊貓"], c: 1 },
+        { q: "How many continents are there on Earth?", a: ["5", "6", "7", "8"], c: 2 }
     ];
 
     let teams = Array.from({length: 8}, (_, i) => ({ 
         id: i+1, count: 0, mark: 0, currentX: 100, qIdx: 0, locked: false, 
         color: `hsl(${i*45}, 85%, 60%)` 
     }));
+    
     let gameActive = false, myTeamId = null, localQIdx = -1, timer = null;
 
-    // 隨機亂序
-    function shuffleQuiz() {
-        for (let i = quiz.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [quiz[i], quiz[j]] = [quiz[j], quiz[i]];
-        }
-    }
-
     client.on('connect', () => {
-        if (!isPlayer) {
-            document.getElementById('menu-wrapper').style.display = 'block';
+        if (!role) { // Main Console
+            document.getElementById('admin-tool').style.display = 'block';
             client.subscribe(`game/${ROOM_ID}/join`);
             client.subscribe(`game/${ROOM_ID}/submit`);
-            setInterval(() => client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz })), 800);
+            setInterval(() => client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz })), 500);
             renderQR();
         } else {
             client.subscribe(`game/${ROOM_ID}/state`);
@@ -184,7 +140,7 @@
     client.on('message', (topic, msg) => {
         const data = JSON.parse(msg.toString());
         if (topic.endsWith('/state')) {
-            quiz = data.quiz; 
+            quiz = data.quiz;
             data.teams.forEach((t, i) => {
                 teams[i].count = t.count;
                 teams[i].mark = t.mark;
@@ -192,9 +148,9 @@
                 teams[i].qIdx = t.qIdx;
             });
             gameActive = data.gameActive;
-            if (!isPlayer) updateConsole();
-            if (isPlayer && myTeamId) handlePlayerLogic();
-        } else if (!isPlayer) {
+            if (role === 'console' || !role) updateBigScreen();
+            if (role === 'player' && myTeamId) handlePlayerLogic();
+        } else if (!role) {
             const tId = data.tId;
             if (topic.endsWith('/join')) { if(teams[tId-1].count < 2) teams[tId-1].count++; }
             if (topic.endsWith('/submit')) {
@@ -213,9 +169,9 @@
         const ov = document.getElementById('overlay');
         const msg = document.getElementById('overlay-msg');
 
-        if (myT.count < 2) { ov.style.display='flex'; msg.innerText="等待隊友加入 (1/2)..."; return; }
-        if (!gameActive) { ov.style.display='flex'; msg.innerText="隊伍已就緒，等待開始！"; return; }
-        if (myT.locked) { ov.style.display='flex'; msg.innerText="隊友搶答中！"; clearInterval(timer); return; }
+        if (myT.count < 2) { ov.style.display='flex'; msg.innerText="Waiting for Partner (1/2)..."; return; }
+        if (!gameActive) { ov.style.display='flex'; msg.innerText="Ready! Watch the Runway..."; return; }
+        if (myT.locked) { ov.style.display='flex'; msg.innerText="Team Partner Answered!"; clearInterval(timer); return; }
         
         ov.style.display='none';
         if (localQIdx !== myT.qIdx) { localQIdx = myT.qIdx; nextQ(); }
@@ -245,29 +201,50 @@
         const isCorrect = (idx === q.c);
         if (idx !== -1) {
             document.getElementById(`btn-${idx}`).className = "ans-btn " + (isCorrect?'correct':'wrong');
-            if (!isCorrect) document.getElementById(`btn-${q.c}`).classList.add('correct');
+            if(!isCorrect) document.getElementById(`btn-${q.c}`).classList.add('correct');
         }
         document.querySelectorAll('.ans-btn').forEach(b => b.disabled = true);
         client.publish(`game/${ROOM_ID}/submit`, JSON.stringify({ tId: myTeamId, qIdx: localQIdx, isCorrect }));
     }
 
-    function updateConsole() {
-        document.getElementById('team-list-ui').innerHTML = teams.map(t => `
-            <div class="team-card ${t.count>=2?'ready':''}">
-                <b style="color:${t.color}">TEAM ${t.id}</b> <span style="float:right">${t.mark}</span>
-                <div style="font-size:0.8rem; color:#888;">Players: ${t.count}/2</div>
-            </div>
-        `).join('');
+    function updateBigScreen() {
+        document.getElementById('game-status').innerText = gameActive ? "🏁 RACE IN PROGRESS" : "⏳ LOBBY - FORMING TEAMS";
+        document.getElementById('team-list-ui').innerHTML = teams.map(t => {
+            let status = t.count < 2 ? "Waiting" : (t.locked ? "Answering" : "Ready");
+            let statusColor = t.count < 2 ? "#ff4757" : (t.locked ? "#ffd700" : "#2ed573");
+            return `
+                <div class="team-row ${t.count>=2?'ready':''}" style="border-left-color:${t.color}">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <b style="color:${t.color}; font-size:1.3rem;">TEAM ${t.id}</b>
+                        <span style="font-size:1.5rem; font-weight:bold;">${t.mark}</span>
+                    </div>
+                    <div style="font-size:0.8rem; margin-top:8px; display:flex; justify-content:space-between;">
+                        <span>Progress: Q${t.qIdx+1}</span>
+                        <span style="color:${statusColor}; font-weight:bold;">${status}</span>
+                        <span>👥 ${t.count}/2</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 
     function startGame() { 
-        shuffleQuiz(); 
+        for (let i = quiz.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [quiz[i], quiz[j]] = [quiz[j], quiz[i]];
+        }
         gameActive = true; 
-        togglePopup(); 
+        toggleAdmin(); 
     }
 
-    function joinTeam(id) { myTeamId = id; client.publish(`game/${ROOM_ID}/join`, JSON.stringify({tId:id})); showPage('player-view'); }
-    function togglePopup() { const p = document.getElementById('popup-panel'); p.style.display = p.style.display==='block'?'none':'block'; }
+    function joinTeam(id) { 
+        myTeamId = id; 
+        localStorage.setItem('gp_reconnect_id', id);
+        client.publish(`game/${ROOM_ID}/join`, JSON.stringify({tId:id})); 
+        showPage('player-view'); 
+    }
+
+    function toggleAdmin() { const p = document.getElementById('admin-panel'); p.style.display = p.style.display==='block'?'none':'block'; }
     function showPage(id) { document.querySelectorAll('.page').forEach(p=>p.classList.remove('active-page')); document.getElementById(id).classList.add('active-page'); }
     function renderQR() { 
         const url = window.location.origin + window.location.pathname + "?role=player";
@@ -275,16 +252,21 @@
     }
 
     window.onload = () => {
-        if (isPlayer) {
-            showPage('lobby-view');
-            const grid = document.getElementById('team-grid');
-            for(let i=1; i<=8; i++) grid.innerHTML += `<button onclick="joinTeam(${i})" style="padding:25px; background:#333; color:white; border-radius:12px; font-weight:bold; border:none; cursor:pointer; font-size:1.2rem;">Team ${i}</button>`;
+        if (role === 'player') {
+            const saved = localStorage.getItem('gp_reconnect_id');
+            if (saved) { myTeamId = parseInt(saved); showPage('player-view'); }
+            else {
+                showPage('lobby-view');
+                const grid = document.getElementById('team-grid');
+                for(let i=1; i<=8; i++) grid.innerHTML += `<button onclick="joinTeam(${i})" style="padding:25px; background:#222; color:white; border-radius:12px; font-weight:bold; border:none; font-size:1.4rem; cursor:pointer;">Team ${i}</button>`;
+            }
         } else {
             showPage('console-view');
             initRace();
         }
     };
 
+    /** --- 跑道與賽車繪製核心 --- **/
     function initRace() {
         const can = document.getElementById('raceCanvas');
         const ctx = can.getContext('2d');
@@ -292,33 +274,68 @@
         window.onresize = resize; resize();
 
         function drawTrack() {
-            const laneH = can.height / 8;
-            for (let i = 0; i < 8; i++) {
-                ctx.fillStyle = i % 2 === 0 ? "#1e1e1e" : "#252525";
-                ctx.fillRect(0, i * laneH, can.width, laneH);
-                // 跑道分界
-                ctx.strokeStyle = "#333"; ctx.lineWidth = 1; ctx.strokeRect(0, i * laneH, can.width, laneH);
-                // 終點線
-                ctx.fillStyle = "#ff4757"; ctx.fillRect(can.width - 80, i*laneH, 10, laneH);
+            const h = can.height / 8;
+            for(let i=0; i<8; i++) {
+                const y = i * h;
+                // 1. 路面 (柏油色)
+                ctx.fillStyle = "#222";
+                ctx.fillRect(0, y, can.width, h);
+                
+                // 2. 路肩 (紅白相間)
+                const shoulderSize = 30;
+                for(let sx=0; sx<can.width; sx+=shoulderSize*2) {
+                    ctx.fillStyle = "#fff"; ctx.fillRect(sx, y, shoulderSize, 4);
+                    ctx.fillStyle = "#ff4757"; ctx.fillRect(sx+shoulderSize, y, shoulderSize, 4);
+                    ctx.fillStyle = "#fff"; ctx.fillRect(sx, y+h-4, shoulderSize, 4);
+                    ctx.fillStyle = "#ff4757"; ctx.fillRect(sx+shoulderSize, y+h-4, shoulderSize, 4);
+                }
+
+                // 3. 起跑線格子旗
+                const startX = 80;
+                const box = 10;
+                for(let r=0; r<h/box; r++) {
+                    ctx.fillStyle = (r%2==0)?"#fff":"#000"; ctx.fillRect(startX, y+(r*box), box, box);
+                    ctx.fillStyle = (r%2!=0)?"#fff":"#000"; ctx.fillRect(startX+box, y+(r*box), box, box);
+                }
+
+                // 4. 路面虛線
+                ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.setLineDash([20, 20]);
+                ctx.beginPath(); ctx.moveTo(startX+40, y+h/2); ctx.lineTo(can.width-120, y+h/2); ctx.stroke();
+                ctx.setLineDash([]);
+
+                // 5. 終點線 (金)
+                const finishX = can.width - 100;
+                ctx.fillStyle = "#ffd700"; ctx.fillRect(finishX, y, 15, h);
+
+                // 6. 跑道編號
+                ctx.fillStyle = "rgba(255,255,255,0.05)"; ctx.font = "bold 60px Arial";
+                ctx.textAlign="left"; ctx.fillText(i+1, 20, y+h-15);
             }
         }
 
         function animate() {
-            ctx.clearRect(0, 0, can.width, can.height);
+            ctx.clearRect(0,0,can.width,can.height);
             drawTrack();
             teams.forEach((t, i) => {
-                if (t.count > 0) {
-                    const laneH = can.height / 8;
-                    // 2000 分到達終點
-                    const targetX = 100 + (t.mark * ((can.width - 250) / 2000)); 
+                if(t.count > 0) {
+                    const h = can.height / 8;
+                    const trackRange = can.width - 250;
+                    const targetX = 120 + (t.mark * (trackRange/2000)); // 2000分為終點
                     t.currentX += (targetX - t.currentX) * 0.08;
-                    const y = (i * laneH) + (laneH / 2);
+                    const y = (i*h) + (h/2);
                     
-                    ctx.shadowBlur = 15; ctx.shadowColor = t.color;
-                    ctx.fillStyle = t.color; ctx.beginPath(); ctx.arc(t.currentX, y, 22, 0, 7); ctx.fill();
-                    ctx.shadowBlur = 0;
-                    ctx.fillStyle = "white"; ctx.font = "bold 16px sans-serif"; ctx.textAlign="center";
-                    ctx.fillText("T"+t.id, t.currentX, y+6);
+                    // 賽車本體 (發光圓球)
+                    ctx.shadowBlur = 20; ctx.shadowColor = t.color;
+                    ctx.fillStyle = t.color; ctx.beginPath(); ctx.arc(t.currentX, y, 24, 0, 7); ctx.fill();
+                    
+                    // 噴射尾氣 (搶答時顯示)
+                    if (t.locked) {
+                        ctx.shadowBlur = 10; ctx.fillStyle = "#fff";
+                        ctx.beginPath(); ctx.arc(t.currentX - 35, y, 8, 0, 7); ctx.fill();
+                    }
+
+                    ctx.shadowBlur = 0; ctx.fillStyle="#fff"; ctx.font="bold 18px sans-serif"; ctx.textAlign="center";
+                    ctx.fillText("T"+t.id, t.currentX, y+7);
                 }
             });
             requestAnimationFrame(animate);
