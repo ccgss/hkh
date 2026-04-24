@@ -21,17 +21,17 @@
         .active-page { display: flex; }
 
         /* --- 大螢幕 & 左側資訊欄 --- */
-        .top-bar { height: 80px; background: #000; display: flex; justify-content: space-between; align-items: center; padding: 0 40px; border-bottom: 4px solid var(--blue); box-shadow: 0 5px 25px rgba(0,255,255,0.3); }
+        .top-bar { height: 80px; background: #000; display: flex; justify-content: space-between; align-items: center; padding: 0 40px; border-bottom: 4px solid var(--blue); box-shadow: 0 5px 25px rgba(0,255,255,0.3); flex-shrink: 0; }
         #main-layout { display: flex; flex: 1; overflow: hidden; }
-        #sidebar { width: 340px; background: #111; border-right: 2px solid #333; padding: 20px; overflow-y: auto; }
-        
-        .team-row { background: #1a1a1a; padding: 15px; margin-bottom: 12px; border-radius: 8px; border-left: 10px solid #444; transition: all 0.3s; box-shadow: 2px 2px 10px rgba(0,0,0,0.5); }
-        .team-row.ready { background: #1a2a1a; }
-        .team-row.locked { animation: pulse-gold 1s infinite alternate; background: #2a2510; }
-        @keyframes pulse-gold { from { box-shadow: 0 0 5px var(--gold); } to { box-shadow: 0 0 20px var(--gold); } }
+        #sidebar { width: 300px; background: #111; border-right: 2px solid #333; padding: 10px; overflow-y: auto; }
         
         #playground { flex: 1; position: relative; background: #111; }
         canvas { width: 100%; height: 100%; display: block; }
+        
+        .team-row { background: #1a1a1a; padding: 10px; margin-bottom: 8px; border-radius: 6px; border-left: 6px solid #444; transition: all 0.3s; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); }
+        .team-row.ready { background: #1a2a1a; }
+        .team-row.locked { animation: pulse-gold 1s infinite alternate; background: #2a2510; }
+        @keyframes pulse-gold { from { box-shadow: 0 0 5px var(--gold); } to { box-shadow: 0 0 20px var(--gold); } }
 
         /* --- 管理控制 --- */
         #admin-tool { position: fixed; top: 15px; right: 20px; z-index: 1000; }
@@ -74,15 +74,17 @@
             <div id="game-status" style="color:var(--gold); font-size:1.4rem; font-weight: bold;">WAITING FOR TEAMS...</div>
         </header>
         <div id="main-layout">
+            <!-- 隊伍資訊改回左側 -->
             <aside id="sidebar"><div id="team-list-ui"></div></aside>
+            <!-- 賽道移至右側 -->
             <main id="playground"><canvas id="raceCanvas"></canvas></main>
         </div>
     </div>
 
     <!-- iPad 玩家選隊大廳 -->
     <div id="lobby-view" class="page" style="justify-content:center; align-items:center;">
-        <h1 style="color:var(--blue); font-size:3rem; margin-bottom:20px;">CHOOSE A TEAM / 選擇隊伍</h1>
-        <p style="color:#aaa; margin-bottom: 30px;">請確保兩名隊員選擇同一個隊伍號碼</p>
+        <h1 style="color:var(--blue); font-size:3rem; margin-bottom:10px;">STEP 1: SELECT A TEAM</h1>
+        <p style="color:#aaa; font-size:1.2rem; margin-bottom: 40px;">請確保兩名隊員選擇同一個隊伍號碼</p>
         <div id="team-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:20px; width:90%; max-width: 800px;"></div>
     </div>
 
@@ -114,13 +116,12 @@
     const urlParams = new URLSearchParams(window.location.search);
     const role = urlParams.get('role'); // 'player', 'console', or null (Main Admin)
     
-    // === 修正：處理 Canvas 環境下的 WebSocket 安全阻擋與回傳機制 ===
+    // === 處理 Canvas 環境下的 WebSocket 安全阻擋與回傳機制 ===
     const isCanvas = typeof __app_id !== 'undefined' || window.location.hostname.includes('googleusercontent');
     let client;
     let msgCallback = null;
 
     if (isCanvas) {
-        // 在預覽環境中改用 BroadcastChannel 進行多視窗本地同步
         console.log("Canvas 環境：已啟用 BroadcastChannel 作為 MQTT 替代方案。");
         const bc = new BroadcastChannel(ROOM_ID);
         client = {
@@ -134,14 +135,12 @@
             subscribe: (topic) => {},
             publish: (topic, msg) => {
                 bc.postMessage({topic, msg});
-                // 模擬 MQTT 廣播行為：發送者自己也會收到這個事件，確保主機台側邊欄能順利更新
                 if (msgCallback) {
                     setTimeout(() => msgCallback(topic, msg), 10);
                 }
             }
         };
     } else {
-        // 在正式環境 (GitHub Pages) 繼續使用 MQTT 連線
         client = mqtt.connect(BROKER);
     }
     // ===================================================
@@ -215,11 +214,10 @@
     let gameActive = false, myTeamId = null, localQIdx = -1, timer = null;
 
     client.on('connect', () => {
-        if (!role) { // Admin Main Console
+        if (!role) { 
             document.getElementById('admin-tool').style.display = 'block';
             client.subscribe(`game/${ROOM_ID}/join`);
             client.subscribe(`game/${ROOM_ID}/submit`);
-            // 主控端每 500ms 廣播一次狀態
             setInterval(() => client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz })), 500);
             renderQR();
         } else {
@@ -227,40 +225,7 @@
         }
     });
 
-    client.on('message', (topic, msg) => {
-        // 使用 toString() 將緩衝區或傳遞的訊息轉為字串以供解析
-        const data = JSON.parse(msg.toString());
-        if (topic.endsWith('/state')) {
-            quiz = data.quiz;
-            data.teams.forEach((t, i) => {
-                teams[i].count = t.count;
-                teams[i].mark = t.mark;
-                teams[i].locked = t.locked;
-                teams[i].qIdx = t.qIdx;
-            });
-            gameActive = data.gameActive;
-            
-            if (role === 'console' || !role) updateBigScreen();
-            if (role === 'player' && myTeamId) handlePlayerLogic();
-            
-        } else if (!role) { // 只有主控端會處理寫入操作
-            const tId = data.tId;
-            if (topic.endsWith('/join')) { 
-                if(teams[tId-1].count < 2) teams[tId-1].count++; 
-            }
-            if (topic.endsWith('/submit')) {
-                let t = teams[tId-1];
-                if (!t.locked && t.qIdx === data.qIdx) {
-                    t.locked = true;
-                    if (data.isCorrect) t.mark += 100;
-                    // 1.5 秒後進入下一題並解鎖
-                    setTimeout(() => { t.qIdx++; t.locked = false; }, 1500);
-                }
-            }
-        }
-    });
-
-    /** --- 左側欄狀態渲染 (Main/Sub) --- **/
+    /** --- 左側狀態渲染 (Main/Sub) --- **/
     function updateBigScreen() {
         const statusEl = document.getElementById('game-status');
         statusEl.innerText = gameActive ? "🏁 RACE IN PROGRESS" : "⏳ LOBBY - FORMING TEAMS";
@@ -285,14 +250,14 @@
             return `
                 <div class="team-row ${t.count>=2 ? 'ready' : ''} ${t.locked ? 'locked' : ''}" style="border-left-color:${t.color}">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <b style="color:${t.color}; font-size:1.4rem;">TEAM ${t.id}</b>
-                        <span style="font-size:1.7rem; font-weight:bold; color:var(--gold);">${t.mark}</span>
+                        <b style="color:${t.color}; font-size:1.1rem;">TEAM ${t.id}</b>
+                        <span style="font-size:1.3rem; font-weight:bold; color:var(--gold);">${t.mark}</span>
                     </div>
-                    <div style="margin-top:10px; display:flex; justify-content:space-between; font-size:0.9rem; font-weight:bold;">
+                    <div style="margin-top:6px; display:flex; justify-content:space-between; font-size:0.8rem; font-weight:bold;">
                         <span>Q: ${t.qIdx + 1}</span>
                         <span style="color:${statusColor}">${statusText}</span>
                     </div>
-                    <div style="width:100%; height:4px; background:#333; margin-top:8px; border-radius:2px; overflow:hidden;">
+                    <div style="width:100%; height:4px; background:#333; margin-top:6px; border-radius:2px; overflow:hidden;">
                         <div style="width:${(t.count/2)*100}%; background:var(--blue); height:100%; transition:0.3s;"></div>
                     </div>
                 </div>
@@ -308,7 +273,7 @@
 
         if (myT.count < 2) { 
             ov.style.display = 'flex'; 
-            msg.innerText = "Waiting for Partner (1/2)..."; 
+            msg.innerText = "STEP 2: WAIT OTHER PLAYER TO JOIN (1/2)..."; 
             return; 
         }
         if (!gameActive) { 
@@ -394,25 +359,27 @@
                     ctx.fillStyle = "#ff4757"; ctx.fillRect(sx+sS, y+h-4, sS, 4);
                 }
 
-                // 黑白格子起跑線
-                const startX = 80;
-                for(let r=0; r<h/10; r++) {
-                    ctx.fillStyle = (r%2==0) ? "#fff" : "#000"; ctx.fillRect(startX, y+(r*10), 10, 10);
-                    ctx.fillStyle = (r%2!=0) ? "#fff" : "#000"; ctx.fillRect(startX+10, y+(r*10), 10, 10);
+                // 起點黃線 (交換)
+                const startLineX = 80;
+                ctx.fillStyle = "#ffd700"; 
+                ctx.fillRect(startLineX, y, 15, h);
+
+                // 終點黑白格子旗 (交換)
+                const finishLineX = can.width - 100;
+                const box = 10;
+                for(let r=0; r<h/box; r++) {
+                    ctx.fillStyle = (r%2==0) ? "#fff" : "#000"; ctx.fillRect(finishLineX, y+(r*box), box, box);
+                    ctx.fillStyle = (r%2!=0) ? "#fff" : "#000"; ctx.fillRect(finishLineX+box, y+(r*box), box, box);
                 }
 
                 // 中間虛線
                 ctx.strokeStyle = "rgba(255,255,255,0.2)"; 
                 ctx.setLineDash([20, 20]);
                 ctx.beginPath(); 
-                ctx.moveTo(startX+30, y+h/2); 
-                ctx.lineTo(can.width-120, y+h/2); 
+                ctx.moveTo(startLineX+30, y+h/2); 
+                ctx.lineTo(finishLineX-20, y+h/2); 
                 ctx.stroke();
                 ctx.setLineDash([]);
-
-                // 終點金色線
-                ctx.fillStyle = "#ffd700"; 
-                ctx.fillRect(can.width-100, y, 15, h);
 
                 // 車道浮水印數字
                 ctx.fillStyle = "rgba(255,255,255,0.06)"; 
@@ -429,8 +396,13 @@
             teams.forEach((t, i) => {
                 if(t.count > 0) {
                     const h = can.height / 8;
-                    const trackRange = can.width - 250;
-                    const targetX = 120 + (t.mark * (trackRange/2000)); // 設定 2000分為終點
+                    const startX = 100;
+                    const finishX = can.width - 100;
+                    const trackRange = finishX - startX;
+                    
+                    // 確保玩家賽車不會超過終點線
+                    const rawTargetX = startX + (t.mark * (trackRange/2000)); // 設定 2000分為滿分終點
+                    const targetX = Math.min(rawTargetX, finishX); 
                     
                     t.currentX += (targetX - t.currentX) * 0.08;
                     const y = (i * h) + (h / 2);
@@ -532,7 +504,7 @@
             }
         } else {
             showPage('console-view');
-            updateBigScreen(); // 預先渲染左側欄隊伍資訊
+            updateBigScreen(); // 預先渲染下方欄隊伍資訊
             initRace();
         }
     };
