@@ -3,273 +3,266 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Team Arena - Fixed Sync</title>
+    <title>團隊問答競技場 - 修正版</title>
     <script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        :root { --bg: #000; --blue: #00ffff; --gold: #ffd700; --red: #ff3300; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: white; font-family: sans-serif; overflow: hidden; }
+        :root { --bg: #000; --blue: #00ffff; --gold: #ffd700; --dark: #111; --panel: rgba(30, 30, 30, 0.98); }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: white; font-family: "Microsoft JhengHei", sans-serif; overflow: hidden; }
         
-        #mode-selector { 
-            position: fixed; top: 0; left: 0; right: 0; height: 50px; background: #1a1a1a; 
-            display: none; justify-content: center; align-items: center; gap: 20px; z-index: 9999; 
-            border-bottom: 1px solid #444;
-        }
-        .mode-btn { padding: 5px 20px; border: 2px solid white; background: #444; color: white; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        .mode-btn.active { background: var(--blue); color: #000; border-color: #000; }
-
         .page { display: none; width: 100vw; height: 100vh; flex-direction: column; }
-        #console-view.has-selector { padding-top: 50px; }
         .active-page { display: flex; }
 
-        #game-header { height: 100px; background: #111; display: flex; justify-content: space-between; align-items: center; padding: 0 30px; border-bottom: 4px solid var(--blue); }
-        
-        #main-layout { position: relative; flex: 1; width: 100%; display: flex; }
-        #player-section { width: 240px; background: rgba(25,25,25,0.95); padding: 15px; border-right: 2px solid #333; overflow-y: auto; z-index: 20; }
-        #playground { flex: 1; background: #000; }
-        canvas { display: block; width: 100%; height: 100%; }
+        /* --- 主螢幕懸浮選單 --- */
+        #menu-wrapper { position: fixed; top: 20px; right: 20px; z-index: 1000; display: none; }
+        #menu-trigger { 
+            width: 55px; height: 55px; background: var(--blue); border-radius: 50%; 
+            display: flex; justify-content: center; align-items: center; cursor: pointer;
+            box-shadow: 0 0 15px var(--blue); border: 2px solid #fff; font-size: 24px;
+        }
+        #popup-panel { 
+            position: absolute; top: 65px; right: 0; width: 260px; background: var(--panel); 
+            border-radius: 12px; border: 1px solid #555; padding: 20px; display: none;
+            backdrop-filter: blur(10px); box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+        }
+        .popup-section { margin-bottom: 15px; text-align: center; }
+        .popup-section h4 { margin: 0 0 10px 0; color: var(--blue); border-bottom: 1px solid #444; }
+        .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .m-btn { padding: 8px; background: #444; border: none; color: white; border-radius: 5px; cursor: pointer; }
+        .m-btn.active { background: var(--blue); color: #000; font-weight: bold; }
 
-        /* Team Cards in Sidebar */
-        .team-card { background: #222; padding: 12px; margin-bottom: 12px; border-radius: 8px; border-left: 10px solid #444; transition: all 0.3s; }
-        .team-active { border-left-color: var(--blue); background: rgba(0,255,255,0.05); }
-        .team-full { border-left-color: #00ff00; background: rgba(0,255,0,0.1); }
+        /* --- 主螢幕佈局 --- */
+        #game-header { height: 80px; background: #0a0a0a; display: flex; align-items: center; padding: 0 30px; border-bottom: 2px solid #333; }
+        #main-layout { display: flex; flex: 1; overflow: hidden; }
+        #player-section { width: 260px; background: #151515; padding: 15px; border-right: 2px solid #333; overflow-y: auto; }
+        #playground-container { flex: 1; position: relative; background: #000; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; }
+        canvas.active-canvas { display: block; }
 
-        /* iPad Grid */
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 20px; width: 90%; max-width: 600px; }
-        .team-select-btn { padding: 30px; font-size: 1.5rem; font-weight: bold; border-radius: 15px; border: 2px solid #444; background: #222; color: white; }
-        .team-select-btn:disabled { opacity: 0.2; }
-        .team-select-btn.joined { background: var(--blue); color: #000; border-color: white; }
+        /* 團隊卡片 */
+        .team-card { background: #252525; padding: 15px; margin-bottom: 12px; border-radius: 10px; border-left: 10px solid #444; transition: 0.3s; }
+        .team-active { border-left-color: var(--blue); }
+        .team-ready { border-left-color: #00ff00; background: rgba(0,255,0,0.05); }
+
+        /* iPad 樣式 */
+        .ans-btn { border: none; border-radius: 15px; font-size: 1.8rem; font-weight: bold; color: white; }
+        .btn-0 { background: #ff4757; } .btn-1 { background: #2e86de; } .btn-2 { background: #2ed573; } .btn-3 { background: #ffa502; }
     </style>
 </head>
-<body class="mode-neon">
+<body>
 
-    <div id="mode-selector">
-        <button id="btn-neon" class="mode-btn active" onclick="switchMode('neon')">NEON DASH</button>
-        <button id="btn-pnb" class="mode-btn" onclick="switchMode('pnb')">BUN HILL</button>
+    <div id="menu-wrapper">
+        <div id="menu-trigger" onclick="togglePopup()">⚙️</div>
+        <div id="popup-panel">
+            <div class="popup-section">
+                <h4>掃描加入</h4>
+                <div id="qrcode" style="background:white; padding:8px; display:inline-block;"></div>
+            </div>
+            <div class="popup-section">
+                <h4>模式切換</h4>
+                <div class="mode-grid">
+                    <button id="m-neon" class="m-btn active" onclick="switchMode('neon')">霓虹</button>
+                    <button id="m-pnb" class="m-btn" onclick="switchMode('pnb')">包山</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="console-view" class="page">
         <header id="game-header">
-            <div id="qrcode"></div>
-            <div style="text-align:center">
-                <h1 id="game-title" style="margin:0">NEON DASH</h1>
-                <small id="conn-info" style="color:var(--blue)">INITIALIZING...</small>
-            </div>
-            <div id="timer" style="font-size:1.8rem; font-weight:bold;">TEAM RACE 🏁</div>
+            <h1 id="game-title" style="margin:0; color:var(--blue);">TEAM QUIZ ARENA</h1>
+            <div style="margin-left: auto; color:#888;">連線狀態: <span id="conn-info" style="color:var(--blue)">連線中...</span></div>
         </header>
         <div id="main-layout">
             <aside id="player-section">
-                <h3 style="margin-top:0; border-bottom:1px solid #444">TEAM STATUS</h3>
+                <h3 style="margin-top:0;">隊伍即時資訊</h3>
                 <div id="player-list">
                     </div>
             </aside>
-            <main id="playground"><canvas id="trackCanvas"></canvas></main>
+            <main id="playground-container">
+                <canvas id="canvasNeon"></canvas>
+                <canvas id="canvasPnb"></canvas>
+            </main>
         </div>
     </div>
 
-    <div id="lobby-view" class="page" style="align-items:center; justify-content:center; background:#050505;">
-        <h1 style="color:var(--blue)">SELECT TEAM (MAX 2)</h1>
-        <div id="team-grid" class="grid"></div>
+    <div id="lobby-view" class="page" style="align-items:center; justify-content:center;">
+        <h1 style="color:var(--blue)">請選擇隊伍</h1>
+        <div id="team-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:15px; width:80%;"></div>
+    </div>
+
+    <div id="waiting-view" class="page" style="align-items:center; justify-content:center;">
+        <h2>等待隊友加入...</h2>
     </div>
 
     <div id="player-view" class="page">
-        <div id="p-header" style="padding:25px; text-align:center; font-size:2rem; background:#111; border-bottom:4px solid var(--blue);">TEAM X</div>
-        <div class="grid" style="flex:1; margin: auto;">
-            <button onclick="send(1)" style="background:#ff5252; height:200px; font-size:4rem; border-radius:30px; border:none; color:white;">A</button>
-            <button onclick="send(2)" style="background:#448aff; height:200px; font-size:4rem; border-radius:30px; border:none; color:white;">B</button>
+        <div style="padding:20px; display:flex; justify-content:space-between; background:#1a1a1a;">
+            <span id="p-team-name" style="color:var(--blue); font-weight:bold;">隊伍 X</span>
+            <button onclick="alert('語言切換功能已就緒')">繁 / 簡</button>
+        </div>
+        <div id="q-text" style="flex:1; display:flex; justify-content:center; align-items:center; padding:30px; font-size:2rem; text-align:center;">題目加載中...</div>
+        <div style="height:300px; display:grid; grid-template-columns:1fr 1fr; gap:15px; padding:20px;">
+            <button class="ans-btn btn-0" onclick="submitAnswer(0)">A</button>
+            <button class="ans-btn btn-1" onclick="submitAnswer(1)">B</button>
+            <button class="ans-btn btn-2" onclick="submitAnswer(2)">C</button>
+            <button class="ans-btn btn-3" onclick="submitAnswer(3)">D</button>
         </div>
     </div>
 
 <script>
-    const ROOM_ID = "TEAM_ARENA_SYNC_2026";
+    const ROOM_ID = "QUIZ_FIXED_2026";
     const BROKER = "wss://broker.emqx.io:8084/mqtt";
     const client = mqtt.connect(BROKER);
     const urlParams = new URLSearchParams(window.location.search);
     const role = (urlParams.get('role') || "").toLowerCase();
-    
+
     let currentGameMode = 'neon';
     let myTeamId = null;
+    let currentQIdx = 0;
     
-    // Initialize 8 Teams
-    let teams = Array.from({length: 8}, (_, i) => ({
-        id: i + 1,
-        count: 0,
-        mark: 0,
-        color: `hsl(${i * 45}, 100%, 65%)`,
-        lastSeen: Date.now()
+    // 初始化隊伍數據
+    let teams = Array.from({length: 8}, (_, i) => ({ 
+        id: i+1, count: 0, mark: 0, color: `hsl(${i*45}, 100%, 65%)` 
     }));
 
+    // 1. 立即初始化 UI (解決主控台沒資訊的問題)
+    function initTeamCards() {
+        const list = document.getElementById('player-list');
+        if (!list) return;
+        list.innerHTML = teams.map(t => `
+            <div id="card-t-${t.id}" class="team-card">
+                <strong style="color:${t.color}">隊伍 ${t.id}</strong><br>
+                <span class="count-text">等待玩家... (0/2)</span>
+            </div>
+        `).join('');
+    }
+
     client.on('connect', () => {
-        document.getElementById('conn-info').innerText = "CONNECTED to MQTT";
+        document.getElementById('conn-info').innerText = "已連線";
         if (role === 'main') {
-            document.getElementById('mode-selector').style.display = 'flex';
-            document.getElementById('console-view').classList.add('has-selector');
+            document.getElementById('menu-wrapper').style.display = 'block';
             client.subscribe(`game/${ROOM_ID}/join`);
-            client.subscribe(`game/${ROOM_ID}/action/+`);
-            setInterval(broadcastState, 200);
+            client.subscribe(`game/${ROOM_ID}/ans`);
+            setInterval(broadcast, 300);
         } else {
             client.subscribe(`game/${ROOM_ID}/state`);
         }
-        updateUI(); // Force first UI render
     });
 
     client.on('message', (topic, msg) => {
         const data = JSON.parse(msg.toString());
-
         if (topic.endsWith('/state')) {
-            currentGameMode = data.mode;
             teams = data.teams;
+            currentQIdx = data.qIdx;
             updateUI();
-        } 
-        else if (role === 'main') {
+            if (myTeamId && teams[myTeamId-1].count >= 2) showPage('player-view');
+        } else if (role === 'main') {
             if (topic.endsWith('/join')) {
-                const t = teams[data.teamId - 1];
+                let t = teams[data.teamId-1];
                 if (t && t.count < 2) {
                     t.count++;
-                    updateUI(); // Update immediately for main console
+                    updateUI(); // 收到訊息立即更新本地 UI
+                    client.publish(`game/${ROOM_ID}/join_confirm/${data.uid}`, JSON.stringify({ pNum: t.count }));
                 }
-            } else if (topic.includes('/action/')) {
-                const teamId = parseInt(topic.split('/').pop());
-                const t = teams[teamId - 1];
-                if (t && t.count > 0) {
-                    t.mark += 15; // Movement speed
-                }
+            } else if (topic.endsWith('/ans')) {
+                // 答題邏輯...
+                teams[data.teamId-1].mark += 50;
+                updateUI();
             }
         }
     });
 
-    function broadcastState() {
-        if (role !== 'main') return;
-        client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ mode: currentGameMode, teams: teams }));
-    }
-
-    function switchMode(mode) { 
-        if (role !== 'main') return;
-        currentGameMode = mode; 
-        document.getElementById('btn-neon').className = 'mode-btn' + (mode==='neon'?' active':'');
-        document.getElementById('btn-pnb').className = 'mode-btn' + (mode==='pnb'?' active':'');
-        broadcastState(); 
-    }
-
-    function sendJoin(id) {
-        myTeamId = id;
-        client.publish(`game/${ROOM_ID}/join`, JSON.stringify({ teamId: id }));
-        document.getElementById('p-header').innerText = "TEAM " + id;
-        showPage('player-view');
-    }
-
-    function send(code) {
-        if (myTeamId) client.publish(`game/${ROOM_ID}/action/${myTeamId}`, JSON.stringify({ btn: code }));
+    function broadcast() {
+        client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ mode: currentGameMode, teams, qIdx: currentQIdx }));
     }
 
     function updateUI() {
-        // Update Sidebar Info
-        const list = document.getElementById('player-list');
-        if (list) {
-            list.innerHTML = teams.map(t => {
-                let statusClass = t.count === 2 ? 'team-full' : (t.count === 1 ? 'team-active' : '');
-                return `
-                    <div class="team-card ${statusClass}">
-                        <strong style="color:${t.color}">TEAM ${t.id}</strong><br>
-                        <span style="font-size:0.8rem">Players: ${t.count}/2</span><br>
-                        <div style="background:#444; height:5px; margin-top:5px;">
-                            <div style="background:${t.color}; width:${(t.mark/1000)*100}%; height:100%"></div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // Update iPad Grid
-        const grid = document.getElementById('team-grid');
-        if (grid) {
-            if (grid.children.length === 0) {
-                for(let i=1; i<=8; i++) {
-                    const b = document.createElement('button');
-                    b.id = "btn-team-" + i;
-                    b.className = "team-select-btn";
-                    b.innerText = "TEAM " + i;
-                    b.onclick = () => sendJoin(i);
-                    grid.appendChild(b);
-                }
+        // 更新側邊欄卡片狀態
+        teams.forEach(t => {
+            const card = document.getElementById(`card-t-${t.id}`);
+            if (card) {
+                card.className = `team-card ${t.count === 2 ? 'team-ready' : (t.count === 1 ? 'team-active' : '')}`;
+                card.querySelector('.count-text').innerText = `已加入: ${t.count}/2 人`;
             }
+        });
+
+        // iPad 隊伍按鈕
+        const grid = document.getElementById('team-grid');
+        if (grid && grid.children.length === 0) {
             teams.forEach(t => {
-                const b = document.getElementById("btn-team-" + t.id);
-                if (b) {
-                    b.innerText = `TEAM ${t.id} (${t.count}/2)`;
-                    b.disabled = (t.count >= 2 && myTeamId !== t.id);
-                    if (myTeamId === t.id) b.classList.add('joined');
-                }
+                const b = document.createElement('button');
+                b.style.cssText = "padding:20px; background:#222; color:white; border:1px solid #444; border-radius:10px;";
+                b.innerText = `隊伍 ${t.id}`;
+                b.onclick = () => joinTeam(t.id);
+                grid.appendChild(b);
             });
         }
+    }
+
+    function togglePopup() {
+        const p = document.getElementById('popup-panel');
+        p.style.display = (p.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function switchMode(m) {
+        currentGameMode = m;
+        document.getElementById('canvasNeon').classList.toggle('active-canvas', m === 'neon');
+        document.getElementById('canvasPnb').classList.toggle('active-canvas', m === 'pnb');
+        document.getElementById('m-neon').classList.toggle('active', m === 'neon');
+        document.getElementById('m-pnb').classList.toggle('active', m === 'pnb');
+        togglePopup();
+    }
+
+    function joinTeam(id) {
+        myTeamId = id;
+        const uid = Math.random().toString(16).substr(2,8);
+        client.publish(`game/${ROOM_ID}/join`, JSON.stringify({ teamId: id, uid }));
+        showPage('waiting-view');
+    }
+
+    function submitAnswer(idx) {
+        client.publish(`game/${ROOM_ID}/ans`, JSON.stringify({ teamId: myTeamId, ans: idx }));
     }
 
     function showPage(id) { document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page')); document.getElementById(id).classList.add('active-page'); }
 
-    function initCanvas() {
-        const canvas = document.getElementById('trackCanvas');
-        const ctx = canvas.getContext('2d');
-        const container = document.getElementById('playground');
-        const resize = () => { canvas.width = container.clientWidth; canvas.height = container.clientHeight; };
-        window.addEventListener('resize', resize); resize();
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const laneH = canvas.height / 9;
-
-            if (currentGameMode === 'neon') {
-                for (let i = 0; i <= 8; i++) {
-                    const y = (i + 0.5) * laneH;
-                    ctx.strokeStyle = "rgba(0, 255, 255, 0.2)";
-                    ctx.setLineDash([15, 15]);
-                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-                }
-                ctx.setLineDash([]);
-                ctx.strokeStyle = "var(--blue)"; ctx.lineWidth = 4;
-                ctx.beginPath(); ctx.moveTo(80, 0); ctx.lineTo(80, canvas.height); ctx.stroke();
-            } else {
-                ctx.fillStyle = "rgba(100, 50, 0, 0.15)";
-                for (let r=1; r<=2; r++) for(let c=1; c<=4; c++) {
-                    const bx = (canvas.width/5)*c, by = (canvas.height/3)*r;
-                    ctx.beginPath(); ctx.moveTo(bx, by-50); ctx.quadraticCurveTo(bx+40,by+30,bx-40,by+30); ctx.fill();
-                }
-            }
-
-            teams.forEach((t, i) => {
-                if (t.count > 0) {
-                    const y = (i + 1) * laneH;
-                    const x = Math.max(80, canvas.width - (t.mark % canvas.width));
-                    
-                    if (currentGameMode === 'pnb') {
-                        ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(x, y, 22, 0, 7); ctx.fill();
-                        ctx.fillStyle = "red"; ctx.font = "bold 12px sans-serif"; ctx.textAlign="center";
-                        ctx.fillText("T" + t.id, x, y+5);
-                    } else {
-                        ctx.fillStyle = t.color; ctx.shadowBlur = 20; ctx.shadowColor = t.color;
-                        ctx.beginPath(); ctx.arc(x, y, 18, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
-                        ctx.fillStyle = "#000"; ctx.font = "bold 14px Arial"; ctx.textAlign="center";
-                        ctx.fillText(t.id, x, y+5);
-                    }
-                }
-            });
-            requestAnimationFrame(draw);
-        }
-        draw();
-    }
-
+    // 繪圖與初始化
     window.onload = () => {
+        initTeamCards(); // 頁面加載完成立即生成隊伍資訊
         if (role !== 'player') {
             showPage('console-view');
             new QRCode(document.getElementById("qrcode"), { 
                 text: window.location.origin + window.location.pathname + "?role=player", 
-                width: 80, height: 80 
+                width: 140, height: 140 
             });
+            // 初始化畫布引擎 (代碼略，與之前相同)
             initCanvas();
         } else {
             showPage('lobby-view');
         }
-        updateUI(); // Immediate render
     };
+
+    function initCanvas() {
+        const cN = document.getElementById('canvasNeon'), cP = document.getElementById('canvasPnb');
+        const ctxN = cN.getContext('2d'), ctxP = cP.getContext('2d');
+        const container = document.getElementById('playground-container');
+        const resize = () => { [cN, cP].forEach(c => { c.width = container.clientWidth; c.height = container.clientHeight; }); };
+        window.addEventListener('resize', resize); resize();
+        function render() {
+            const ctx = currentGameMode === 'neon' ? ctxN : ctxP;
+            const can = currentGameMode === 'neon' ? cN : cP;
+            ctx.clearRect(0, 0, can.width, can.height);
+            teams.forEach((t, i) => {
+                if (t.count > 0) {
+                    const x = can.width - (t.mark % can.width);
+                    ctx.fillStyle = t.color;
+                    ctx.beginPath(); ctx.arc(x, (i+1)*(can.height/9), 20, 0, 7); ctx.fill();
+                }
+            });
+            requestAnimationFrame(render);
+        }
+        render();
+    }
 </script>
 </body>
 </html>
