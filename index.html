@@ -38,9 +38,9 @@
         @keyframes pulse-gold { from { box-shadow: 0 0 5px var(--gold); } to { box-shadow: 0 0 20px var(--gold); } }
 
         /* --- 管理控制 --- */
-        #admin-tool { position: fixed; top: 15px; right: 20px; z-index: 9999; }
-        #gear-btn { width: 50px; height: 50px; background: var(--blue); border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; border: 2px solid #fff; font-size: 24px; box-shadow: 0 0 15px var(--blue); }
-        #admin-panel { position: absolute; top: 65px; right: 0; width: 280px; background: var(--panel); border: 1px solid #444; border-radius: 12px; padding: 20px; display: none; }
+        #admin-tool { position: fixed; top: 15px; right: 20px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; }
+        #gear-btn { width: 50px; height: 50px; background: var(--blue); border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; border: 2px solid #fff; font-size: 24px; box-shadow: 0 0 15px var(--blue); flex-shrink: 0; }
+        #admin-panel { margin-top: 15px; width: 280px; box-sizing: border-box; background: var(--panel); border: 1px solid #444; border-radius: 12px; padding: 20px; display: none; }
 
         /* --- iPad 玩家樣式 --- */
         .team-select-btn { padding: 25px; background: #222; color: white; border-radius: 12px; border: 2px solid #444; font-size: 1.5rem; font-weight: bold; cursor: pointer; transition: 0.2s; }
@@ -228,7 +228,6 @@
             setInterval(() => {
                 client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz }));
             }, 500);
-            renderQR();
             
             // 如果是在預覽環境，加上顯著的提示讓使用者知道要開新視窗
             if (isCanvas) {
@@ -530,9 +529,15 @@
         location.reload();
     }
 
+    // 將二維條碼渲染改到打開面板時執行，避免 display:none 導致的生成錯誤
+    let qrRendered = false;
     function toggleAdmin() { 
         const p = document.getElementById('admin-panel'); 
         p.style.display = (p.style.display === 'block') ? 'none' : 'block'; 
+        if (p.style.display === 'block' && !qrRendered) {
+            renderQR();
+            qrRendered = true;
+        }
     }
 
     function showPage(id) { 
@@ -541,15 +546,21 @@
     }
 
     function renderQR() { 
-        const url = window.location.origin + window.location.pathname + "?role=player";
-        new QRCode(document.getElementById('qrcode-area'), { text: url, width: 140, height: 140 }); 
+        const container = document.getElementById('qrcode-area');
+        container.innerHTML = '';
+        let url = window.location.href.split('?')[0] + "?role=player";
+        try {
+            new QRCode(container, { text: url, width: 140, height: 140 }); 
+        } catch (e) {
+            console.error("QR Code生成失敗:", e);
+        }
     }
 
     // --- 程式進入點 ---
     window.addEventListener('load', () => {
         // 確保管理員齒輪按鈕顯示
         if (!role) {
-            document.getElementById('admin-tool').style.display = 'block';
+            document.getElementById('admin-tool').style.display = 'flex';
         }
 
         if (role === 'player') {
