@@ -3,23 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Grand Prix Pro - Ultimate Racing Edition</title>
+    <title>Grand Prix Ultimate - 3-Layer Racing System</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        :root { --bg: #0a0a0a; --blue: #00ffff; --gold: #ffd700; --red: #ff4757; --green: #2ed573; --panel: rgba(15, 15, 15, 0.98); }
+        :root { 
+            --bg: #0a0a0a; 
+            --blue: #00ffff; 
+            --gold: #ffd700; 
+            --red: #ff4757; 
+            --green: #2ed573; 
+            --panel: rgba(15, 15, 15, 0.98); 
+        }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: white; font-family: "Segoe UI", "Microsoft JhengHei", sans-serif; overflow: hidden; }
         
         .page { display: none; width: 100vw; height: 100vh; flex-direction: column; }
         .active-page { display: flex; }
 
-        /* --- 大螢幕樣式 (Main & Sub) --- */
+        /* --- 大螢幕 & 左側資訊欄 --- */
         .top-bar { height: 80px; background: #000; display: flex; justify-content: space-between; align-items: center; padding: 0 40px; border-bottom: 4px solid var(--blue); box-shadow: 0 5px 25px rgba(0,255,255,0.3); }
         #main-layout { display: flex; flex: 1; overflow: hidden; }
         #sidebar { width: 340px; background: #111; border-right: 2px solid #333; padding: 20px; overflow-y: auto; }
         
-        .team-row { background: #1a1a1a; padding: 15px; margin-bottom: 12px; border-radius: 10px; border-left: 8px solid #444; transition: all 0.3s; }
-        .team-row.ready { border-left-color: var(--green); background: #1a2a1a; }
+        .team-row { background: #1a1a1a; padding: 15px; margin-bottom: 12px; border-radius: 8px; border-left: 10px solid #444; transition: all 0.3s; box-shadow: 2px 2px 10px rgba(0,0,0,0.5); }
+        .team-row.ready { background: #1a2a1a; }
+        .team-row.locked { animation: pulse-gold 1s infinite alternate; background: #2a2510; }
+        @keyframes pulse-gold { from { box-shadow: 0 0 5px var(--gold); } to { box-shadow: 0 0 20px var(--gold); } }
         
         #playground { flex: 1; position: relative; background: #111; }
         canvas { width: 100%; height: 100%; display: block; }
@@ -30,6 +39,9 @@
         #admin-panel { position: absolute; top: 65px; right: 0; width: 280px; background: var(--panel); border: 1px solid #444; border-radius: 12px; padding: 20px; display: none; }
 
         /* --- iPad 玩家樣式 --- */
+        .team-select-btn { padding: 25px; background: #222; color: white; border-radius: 12px; border: 2px solid #444; font-size: 1.5rem; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .team-select-btn:active { transform: scale(0.95); border-color: var(--blue); }
+        
         .timer-wrap { width: 100%; height: 15px; background: #222; }
         #timer-bar { height: 100%; width: 100%; background: var(--red); transition: width 0.1s linear; }
         .q-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 30px; text-align: center; }
@@ -39,24 +51,26 @@
         .ans-btn.correct { background: var(--green) !important; }
         .ans-btn.wrong { background: var(--red) !important; }
 
-        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.96); display: none; z-index: 2000; justify-content: center; align-items: center; text-align: center; }
+        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.96); display: none; z-index: 2000; justify-content: center; align-items: center; text-align: center; padding: 20px; }
         #overlay-msg { font-size: 2.5rem; color: var(--gold); font-weight: bold; }
     </style>
 </head>
 <body>
 
+    <!-- 管理工具箱 (僅限主控台) -->
     <div id="admin-tool" style="display:none;">
         <div id="gear-btn" onclick="toggleAdmin()">⚙️</div>
         <div id="admin-panel">
             <div id="qrcode-area" style="background:white; padding:10px; margin-bottom:15px; display:flex; justify-content:center;"></div>
-            <button onclick="startGame()" style="width:100%; padding:12px; background:var(--red); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">START GAME</button>
-            <button onclick="if(confirm('Reset all?')) location.reload()" style="width:100%; padding:10px; background:#444; color:white; border:none; border-radius:8px; margin-top:10px; cursor:pointer;">RESET ALL</button>
+            <button onclick="startGame()" style="width:100%; padding:12px; background:var(--red); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">START GAME (SHUFFLE)</button>
+            <button onclick="resetGame()" style="width:100%; padding:10px; background:#444; color:white; border:none; border-radius:8px; margin-top:10px; cursor:pointer;">FULL RESET</button>
         </div>
     </div>
 
+    <!-- 大螢幕顯示 (Console / Mirror) -->
     <div id="console-view" class="page">
         <header class="top-bar">
-            <h2 id="title-text" style="color:var(--blue); margin:0; letter-spacing: 2px;">TEAM RACING CHAMPIONSHIP</h2>
+            <h2 style="color:var(--blue); margin:0; letter-spacing: 2px;">🏁 GRAND PRIX CHAMPIONSHIP</h2>
             <div id="game-status" style="color:var(--gold); font-size:1.4rem; font-weight: bold;">WAITING FOR TEAMS...</div>
         </header>
         <div id="main-layout">
@@ -65,19 +79,27 @@
         </div>
     </div>
 
+    <!-- iPad 玩家選隊大廳 -->
     <div id="lobby-view" class="page" style="justify-content:center; align-items:center;">
-        <h1 style="color:var(--blue); font-size:3rem; margin-bottom:40px;">SELECT YOUR TEAM</h1>
-        <div id="team-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:20px; width:90%;"></div>
+        <h1 style="color:var(--blue); font-size:3rem; margin-bottom:20px;">CHOOSE A TEAM / 選擇隊伍</h1>
+        <p style="color:#aaa; margin-bottom: 30px;">請確保兩名隊員選擇同一個隊伍號碼</p>
+        <div id="team-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:20px; width:90%; max-width: 800px;"></div>
     </div>
 
+    <!-- iPad 答題介面 -->
     <div id="player-view" class="page">
-        <div id="overlay"><div id="overlay-msg"></div></div>
-        <div class="top-bar">
-            <div id="ui-team" style="font-size:1.6rem; font-weight:bold; color:var(--blue);">Team --</div>
-            <div id="ui-score" style="font-size:1.6rem;">Score: 0</div>
+        <div id="overlay">
+            <div>
+                <div id="overlay-msg"></div>
+                <button onclick="clearTeam()" style="margin-top: 30px; padding: 10px 20px; background: #333; color: #fff; border: none; border-radius: 8px; font-size: 1.2rem; cursor: pointer;">退出隊伍 / Exit Team</button>
+            </div>
+        </div>
+        <div class="top-bar" style="height: 60px;">
+            <div id="ui-team" style="font-size:1.6rem; font-weight:bold; color:var(--blue);">TEAM --</div>
+            <div id="ui-score" style="font-size:1.6rem; font-weight:bold;">SCORE: 0</div>
         </div>
         <div class="timer-wrap"><div id="timer-bar"></div></div>
-        <div class="q-area"><div id="ui-q" style="font-size:2.2rem; font-weight:bold;">Waiting...</div></div>
+        <div class="q-area"><div id="ui-q" style="font-size:2.2rem; font-weight:bold;">Wait for start...</div></div>
         <div class="ans-grid">
             <button class="ans-btn" onclick="sendAns(0)" id="btn-0">A</button>
             <button class="ans-btn" onclick="sendAns(1)" id="btn-1">B</button>
@@ -87,35 +109,92 @@
     </div>
 
 <script>
-    const ROOM_ID = "GP_TEAM_BATTLE_2026_FINAL";
+    const ROOM_ID = "GP_ELITE_RACING_FINAL";
     const BROKER = "wss://broker.emqx.io:8084/mqtt";
     const urlParams = new URLSearchParams(window.location.search);
-    const role = urlParams.get('role'); // player, console, or null(Main)
+    const role = urlParams.get('role'); // 'player', 'console', or null (Main Admin)
     
-    const client = mqtt.connect(BROKER);
+    // === 修正：處理 Canvas 環境下的 WebSocket 安全阻擋 ===
+    const isCanvas = typeof __app_id !== 'undefined' || window.location.hostname.includes('googleusercontent');
+    let client;
+
+    if (isCanvas) {
+        // 在預覽環境中改用 BroadcastChannel 進行多視窗本地同步
+        console.log("Canvas 環境：已啟用 BroadcastChannel 作為 MQTT 替代方案。");
+        const bc = new BroadcastChannel(ROOM_ID);
+        client = {
+            on: (event, cb) => {
+                if (event === 'connect') setTimeout(cb, 100);
+                if (event === 'message') bc.addEventListener('message', e => cb(e.data.topic, e.data.msg));
+            },
+            subscribe: (topic) => {},
+            publish: (topic, msg) => bc.postMessage({topic, msg})
+        };
+    } else {
+        // 在正式環境 (GitHub Pages) 繼續使用 MQTT 連線
+        client = mqtt.connect(BROKER);
+    }
+    // ===================================================
     
-    // 預設 20 題庫（範例），可自行擴充至 60 題
+    // 60 題中英文題庫
     let quiz = [
         { q: "太陽系中哪顆行星被稱為「紅色星球」？", a: ["金星", "火星", "木星", "土星"], c: 1 },
-        { q: "Which gas do plants absorb during photosynthesis?", a: ["Oxygen", "Nitrogen", "CO2", "Hydrogen"], c: 2 },
+        { q: "請問水的沸點在標準大氣壓下是多少度？", a: ["90°C", "100°C", "110°C", "120°C"], c: 1 },
         { q: "人體最大的器官是什麼？", a: ["心臟", "肝臟", "皮膚", "肺"], c: 2 },
-        { q: "What is 15 + 25?", a: ["30", "35", "40", "45"], c: 2 },
-        { q: "Which month comes after JULY?", a: ["June", "August", "September", "May"], c: 1 },
-        { q: "「詩聖」是指哪位唐代詩人？", a: ["李白", "杜甫", "白居易", "王維"], c: 1 },
-        { q: "How many legs does a spider have?", a: ["6", "8", "10", "12"], c: 1 },
-        { q: "Water boils at how many degrees Celsius?", a: ["90°C", "100°C", "110°C", "120°C"], c: 1 },
-        { q: "三角形的內角和是多少度？", a: ["90", "180", "270", "360"], c: 1 },
-        { q: "Opposite of 'FAST' is?", a: ["Quick", "Slow", "High", "Deep"], c: 1 },
-        { q: "日本的國花是什麼？", a: ["梅花", "牡丹", "櫻花", "蓮花"], c: 2 },
-        { q: "Choose the correct past tense of 'GO'.", a: ["Went", "Gone", "Goes", "Going"], c: 0 },
+        { q: "哪種氣體是植物進行光合作用時吸收的？", a: ["氧氣", "氮氣", "二氧化碳", "氫氣"], c: 2 },
+        { q: "世界上最小的國家是哪一個？", a: ["摩納哥", "梵蒂岡", "馬爾他", "新加坡"], c: 1 },
         { q: "指南針的 N 極指向哪個方向？", a: ["南方", "西方", "東方", "北方"], c: 3 },
-        { q: "What is the capital of France?", a: ["London", "Berlin", "Madrid", "Paris"], c: 3 },
+        { q: "一小時有多少秒？", a: ["360秒", "3600秒", "60秒", "600秒"], c: 1 },
         { q: "哪種金屬在常溫下是液態的？", a: ["金", "汞", "銀", "銅"], c: 1 },
-        { q: "7 multiplied by 8 equals?", a: ["54", "56", "58", "60"], c: 1 },
-        { q: "「沙漠之舟」是指哪種動物？", a: ["馬", "駱駝", "驢子", "大象"], c: 1 },
-        { q: "Identify the plural form of 'MOUSE'.", a: ["Mouses", "Mice", "Mices", "Mouse"], c: 1 },
+        { q: "著名的「蒙娜麗莎」是誰的作品？", a: ["梵谷", "畢卡索", "達文西", "莫內"], c: 2 },
+        { q: "蜘蛛有多少條腿？", a: ["6條", "8條", "10條", "12條"], c: 1 },
+        { q: "哪種鳥類不會飛行？", a: ["老鷹", "企鵝", "鸚鵡", "麻雀"], c: 1 },
+        { q: "三角形的內角和是多少度？", a: ["90度", "180度", "270度", "360度"], c: 1 },
+        { q: "蜜蜂採蜜是為了製造什麼？", a: ["水", "花粉", "蜂蜜", "蜂蠟"], c: 2 },
         { q: "澳洲的代表性動物是什麼？", a: ["大象", "袋鼠", "獅子", "熊貓"], c: 1 },
-        { q: "How many continents are there on Earth?", a: ["5", "6", "7", "8"], c: 2 }
+        { q: "一年當中有幾個月有 31 天？", a: ["5個", "6個", "7個", "8個"], c: 2 },
+        { q: "「沙漠之舟」是指哪種動物？", a: ["馬", "駱駝", "驢子", "大象"], c: 1 },
+        { q: "電腦的運算核心縮寫是什麼？", a: ["RAM", "GPU", "CPU", "SSD"], c: 2 },
+        { q: "日本的國花是什麼？", a: ["梅花", "牡丹", "櫻花", "蓮花"], c: 2 },
+        { q: "誰發明了電燈泡？", a: ["特斯拉", "愛迪生", "牛頓", "愛因斯坦"], c: 1 },
+        { q: "「詩仙」是指哪位唐代詩人？", a: ["李白", "杜甫", "王維", "白居易"], c: 0 },
+        { q: "奧運五環中，藍色環代表哪個洲？", a: ["亞洲", "歐洲", "非洲", "美洲"], c: 1 },
+        { q: "聲音在什麼介質中傳播最快？", a: ["空氣", "水", "真空", "固體"], c: 3 },
+        { q: "下列哪一個是可再生能源？", a: ["石油", "煤炭", "太陽能", "天然氣"], c: 2 },
+        { q: "請問 12 乘 12 等於多少？", a: ["124", "144", "164", "184"], c: 1 },
+        { q: "恐龍是在哪個時代滅絕的？", a: ["白堊紀", "侏羅紀", "三疊紀", "寒武紀"], c: 0 },
+        { q: "地圖上的藍色通常代表什麼？", a: ["森林", "沙漠", "海洋", "城市"], c: 2 },
+        { q: "哪種物質是「萬能溶劑」？", a: ["酒精", "汽油", "水", "醋"], c: 2 },
+        { q: "Which word is a synonym of 'HAPPY'?", a: ["Sad", "Angry", "Joyful", "Sleepy"], c: 2 },
+        { q: "Choose the correct past tense of 'GO'.", a: ["Went", "Gone", "Goes", "Going"], c: 0 },
+        { q: "Which is an example of an ADJECTIVE?", a: ["Run", "Beautiful", "Quickly", "Apple"], c: 1 },
+        { q: "What is the opposite of 'FAST'?", a: ["Quick", "Slow", "High", "Deep"], c: 1 },
+        { q: "Finish the sentence: She ____ a teacher.", a: ["am", "is", "are", "be"], c: 1 },
+        { q: "Which word is the odd one out?", a: ["Table", "Chair", "Desk", "Banana"], c: 3 },
+        { q: "What is a baby dog called?", a: ["Kitten", "Cub", "Puppy", "Calf"], c: 2 },
+        { q: "Identify the plural form of 'MOUSE'.", a: ["Mouses", "Mice", "Mices", "Mouse"], c: 1 },
+        { q: "Which month comes after JULY?", a: ["June", "August", "September", "May"], c: 1 },
+        { q: "I ____ breakfast every morning.", a: ["eat", "eats", "eating", "ate"], c: 0 },
+        { q: "Which is a 'FRUIT'?", a: ["Carrot", "Cabbage", "Orange", "Onion"], c: 2 },
+        { q: "What is the collective noun for birds?", a: ["Herd", "Flock", "Pack", "School"], c: 1 },
+        { q: "Which spelling is correct?", a: ["Receve", "Receive", "Recieve", "Receiv"], c: 1 },
+        { q: "What is the comparative of 'GOOD'?", a: ["Gooder", "Best", "Better", "Well"], c: 2 },
+        { q: "A person who flies an airplane is a...?", a: ["Doctor", "Driver", "Pilot", "Chef"], c: 2 },
+        { q: "Choose the correct article: __ apple a day.", a: ["A", "An", "The", "No article"], c: 1 },
+        { q: "Which word describes a 'PERSON'?", a: ["He", "It", "They", "We"], c: 0 },
+        { q: "What do you use to cut paper?", a: ["Knife", "Scissors", "Pencil", "Spoon"], c: 1 },
+        { q: "How do you say '謝謝' in English?", a: ["Please", "Sorry", "Thank you", "Hello"], c: 2 },
+        { q: "Which is a 'VERB'?", a: ["Book", "Jump", "Yellow", "House"], c: 1 },
+        { q: "What is the capital letter of 'b'?", a: ["D", "P", "B", "Q"], c: 2 },
+        { q: "Which animal says 'Meow'?", a: ["Dog", "Cat", "Cow", "Pig"], c: 1 },
+        { q: "Where does a 'FISH' live?", a: ["Forest", "Sky", "Water", "Desert"], c: 2 },
+        { q: "Which number is 'THIRTEEN'?", a: ["3", "30", "13", "31"], c: 2 },
+        { q: "What color is a 'LEMON'?", a: ["Red", "Purple", "Yellow", "Blue"], c: 2 },
+        { q: "Which is a 'WILD ANIMAL'?", a: ["Cat", "Tiger", "Sheep", "Chicken"], c: 1 },
+        { q: "How many days are in a 'WEEK'?", a: ["5", "6", "7", "10"], c: 2 },
+        { q: "Which is NOT a weekday?", a: ["Monday", "Friday", "Sunday", "Tuesday"], c: 2 },
+        { q: "The sun rises in the ____.", a: ["West", "North", "South", "East"], c: 3 },
+        { q: "Which is a 'TRANSPORT'?", a: ["Bed", "Bicycle", "Bread", "Box"], c: 1 }
     ];
 
     let teams = Array.from({length: 8}, (_, i) => ({ 
@@ -126,10 +205,11 @@
     let gameActive = false, myTeamId = null, localQIdx = -1, timer = null;
 
     client.on('connect', () => {
-        if (!role) { // Main Console
+        if (!role) { // Admin Main Console
             document.getElementById('admin-tool').style.display = 'block';
             client.subscribe(`game/${ROOM_ID}/join`);
             client.subscribe(`game/${ROOM_ID}/submit`);
+            // 主控端每 500ms 廣播一次狀態
             setInterval(() => client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz })), 500);
             renderQR();
         } else {
@@ -138,6 +218,7 @@
     });
 
     client.on('message', (topic, msg) => {
+        // 使用 toString() 將緩衝區或傳遞的訊息轉為字串以供解析
         const data = JSON.parse(msg.toString());
         if (topic.endsWith('/state')) {
             quiz = data.quiz;
@@ -148,35 +229,97 @@
                 teams[i].qIdx = t.qIdx;
             });
             gameActive = data.gameActive;
+            
             if (role === 'console' || !role) updateBigScreen();
             if (role === 'player' && myTeamId) handlePlayerLogic();
-        } else if (!role) {
+            
+        } else if (!role) { // 只有主控端會處理寫入操作
             const tId = data.tId;
-            if (topic.endsWith('/join')) { if(teams[tId-1].count < 2) teams[tId-1].count++; }
+            if (topic.endsWith('/join')) { 
+                if(teams[tId-1].count < 2) teams[tId-1].count++; 
+            }
             if (topic.endsWith('/submit')) {
                 let t = teams[tId-1];
                 if (!t.locked && t.qIdx === data.qIdx) {
                     t.locked = true;
                     if (data.isCorrect) t.mark += 100;
-                    setTimeout(() => { t.qIdx++; t.locked = false; }, 1800);
+                    // 1.5 秒後進入下一題並解鎖
+                    setTimeout(() => { t.qIdx++; t.locked = false; }, 1500);
                 }
             }
         }
     });
 
+    /** --- 左側欄狀態渲染 (Main/Sub) --- **/
+    function updateBigScreen() {
+        const statusEl = document.getElementById('game-status');
+        statusEl.innerText = gameActive ? "🏁 RACE IN PROGRESS" : "⏳ LOBBY - FORMING TEAMS";
+        
+        document.getElementById('team-list-ui').innerHTML = teams.map(t => {
+            let statusText = "EMPTY";
+            let statusColor = "#555";
+
+            if (t.count === 1) { 
+                statusText = "WAITING 👤"; 
+                statusColor = "var(--red)"; 
+            } else if (t.count === 2) { 
+                if(t.locked) { 
+                    statusText = "LOCKED ⚡"; 
+                    statusColor = "var(--gold)"; 
+                } else { 
+                    statusText = "READY ✅"; 
+                    statusColor = "var(--green)"; 
+                }
+            }
+
+            return `
+                <div class="team-row ${t.count>=2 ? 'ready' : ''} ${t.locked ? 'locked' : ''}" style="border-left-color:${t.color}">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <b style="color:${t.color}; font-size:1.4rem;">TEAM ${t.id}</b>
+                        <span style="font-size:1.7rem; font-weight:bold; color:var(--gold);">${t.mark}</span>
+                    </div>
+                    <div style="margin-top:10px; display:flex; justify-content:space-between; font-size:0.9rem; font-weight:bold;">
+                        <span>Q: ${t.qIdx + 1}</span>
+                        <span style="color:${statusColor}">${statusText}</span>
+                    </div>
+                    <div style="width:100%; height:4px; background:#333; margin-top:8px; border-radius:2px; overflow:hidden;">
+                        <div style="width:${(t.count/2)*100}%; background:var(--blue); height:100%; transition:0.3s;"></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    /** --- iPad 玩家端邏輯 --- **/
     function handlePlayerLogic() {
         const myT = teams[myTeamId-1];
         const ov = document.getElementById('overlay');
         const msg = document.getElementById('overlay-msg');
 
-        if (myT.count < 2) { ov.style.display='flex'; msg.innerText="Waiting for Partner (1/2)..."; return; }
-        if (!gameActive) { ov.style.display='flex'; msg.innerText="Ready! Watch the Runway..."; return; }
-        if (myT.locked) { ov.style.display='flex'; msg.innerText="Team Partner Answered!"; clearInterval(timer); return; }
+        if (myT.count < 2) { 
+            ov.style.display = 'flex'; 
+            msg.innerText = "Waiting for Partner (1/2)..."; 
+            return; 
+        }
+        if (!gameActive) { 
+            ov.style.display = 'flex'; 
+            msg.innerText = "Team Ready! Watch the Screen."; 
+            return; 
+        }
+        if (myT.locked) { 
+            ov.style.display = 'flex'; 
+            msg.innerText = "Team Answered! Locked ⚡"; 
+            clearInterval(timer); 
+            return; 
+        }
         
-        ov.style.display='none';
-        if (localQIdx !== myT.qIdx) { localQIdx = myT.qIdx; nextQ(); }
-        document.getElementById('ui-team').innerText = "Team " + myTeamId;
-        document.getElementById('ui-score').innerText = "Score: " + myT.mark;
+        ov.style.display = 'none';
+        if (localQIdx !== myT.qIdx) { 
+            localQIdx = myT.qIdx; 
+            nextQ(); 
+        }
+        document.getElementById('ui-team').innerText = "TEAM " + myTeamId;
+        document.getElementById('ui-score').innerText = "SCORE: " + myT.mark;
     }
 
     function nextQ() {
@@ -185,14 +328,19 @@
         document.getElementById('ui-q').innerText = q.q;
         for(let i=0; i<4; i++) {
             const b = document.getElementById(`btn-${i}`);
-            b.innerText = q.a[i]; b.className = "ans-btn"; b.disabled = false;
+            b.innerText = q.a[i]; 
+            b.className = "ans-btn"; 
+            b.disabled = false;
         }
         let t = 10.0;
         if (timer) clearInterval(timer);
         timer = setInterval(() => {
             t -= 0.1;
             document.getElementById('timer-bar').style.width = (t*10)+"%";
-            if (t <= 0) { clearInterval(timer); sendAns(-1); }
+            if (t <= 0) { 
+                clearInterval(timer); 
+                sendAns(-1); // 時間到
+            }
         }, 100);
     }
 
@@ -200,35 +348,116 @@
         const q = quiz[teams[myTeamId-1].qIdx % quiz.length];
         const isCorrect = (idx === q.c);
         if (idx !== -1) {
-            document.getElementById(`btn-${idx}`).className = "ans-btn " + (isCorrect?'correct':'wrong');
+            document.getElementById(`btn-${idx}`).className = "ans-btn " + (isCorrect ? 'correct' : 'wrong');
             if(!isCorrect) document.getElementById(`btn-${q.c}`).classList.add('correct');
         }
         document.querySelectorAll('.ans-btn').forEach(b => b.disabled = true);
         client.publish(`game/${ROOM_ID}/submit`, JSON.stringify({ tId: myTeamId, qIdx: localQIdx, isCorrect }));
     }
 
-    function updateBigScreen() {
-        document.getElementById('game-status').innerText = gameActive ? "🏁 RACE IN PROGRESS" : "⏳ LOBBY - FORMING TEAMS";
-        document.getElementById('team-list-ui').innerHTML = teams.map(t => {
-            let status = t.count < 2 ? "Waiting" : (t.locked ? "Answering" : "Ready");
-            let statusColor = t.count < 2 ? "#ff4757" : (t.locked ? "#ffd700" : "#2ed573");
-            return `
-                <div class="team-row ${t.count>=2?'ready':''}" style="border-left-color:${t.color}">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <b style="color:${t.color}; font-size:1.3rem;">TEAM ${t.id}</b>
-                        <span style="font-size:1.5rem; font-weight:bold;">${t.mark}</span>
-                    </div>
-                    <div style="font-size:0.8rem; margin-top:8px; display:flex; justify-content:space-between;">
-                        <span>Progress: Q${t.qIdx+1}</span>
-                        <span style="color:${statusColor}; font-weight:bold;">${status}</span>
-                        <span>👥 ${t.count}/2</span>
-                    </div>
-                </div>
-            `;
-        }).join('');
+    /** --- 跑道與賽車渲染 (Playground) --- **/
+    function initRace() {
+        const can = document.getElementById('raceCanvas');
+        const ctx = can.getContext('2d');
+        const resize = () => { 
+            can.width = can.parentElement.clientWidth; 
+            can.height = can.parentElement.clientHeight; 
+        };
+        window.onresize = resize; 
+        resize();
+
+        function drawTrack() {
+            const h = can.height / 8;
+            for(let i=0; i<8; i++) {
+                const y = i * h;
+                
+                // 柏油路面
+                ctx.fillStyle = "#222"; 
+                ctx.fillRect(0, y, can.width, h);
+                
+                // 紅白路肩
+                const sS = 30; // 肩寬
+                for(let sx=0; sx<can.width; sx+=sS*2) {
+                    ctx.fillStyle = "#fff"; ctx.fillRect(sx, y, sS, 4);
+                    ctx.fillStyle = "#ff4757"; ctx.fillRect(sx+sS, y, sS, 4);
+                    ctx.fillStyle = "#fff"; ctx.fillRect(sx, y+h-4, sS, 4);
+                    ctx.fillStyle = "#ff4757"; ctx.fillRect(sx+sS, y+h-4, sS, 4);
+                }
+
+                // 黑白格子起跑線
+                const startX = 80;
+                for(let r=0; r<h/10; r++) {
+                    ctx.fillStyle = (r%2==0) ? "#fff" : "#000"; ctx.fillRect(startX, y+(r*10), 10, 10);
+                    ctx.fillStyle = (r%2!=0) ? "#fff" : "#000"; ctx.fillRect(startX+10, y+(r*10), 10, 10);
+                }
+
+                // 中間虛線
+                ctx.strokeStyle = "rgba(255,255,255,0.2)"; 
+                ctx.setLineDash([20, 20]);
+                ctx.beginPath(); 
+                ctx.moveTo(startX+30, y+h/2); 
+                ctx.lineTo(can.width-120, y+h/2); 
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // 終點金色線
+                ctx.fillStyle = "#ffd700"; 
+                ctx.fillRect(can.width-100, y, 15, h);
+
+                // 車道浮水印數字
+                ctx.fillStyle = "rgba(255,255,255,0.06)"; 
+                ctx.font = "bold 60px Arial"; 
+                ctx.textAlign = "left";
+                ctx.fillText(i+1, 20, y+h-15);
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, can.width, can.height);
+            drawTrack();
+            
+            teams.forEach((t, i) => {
+                if(t.count > 0) {
+                    const h = can.height / 8;
+                    const trackRange = can.width - 250;
+                    const targetX = 120 + (t.mark * (trackRange/2000)); // 設定 2000分為終點
+                    
+                    t.currentX += (targetX - t.currentX) * 0.08;
+                    const y = (i * h) + (h / 2);
+                    
+                    // 賽車本體
+                    ctx.shadowBlur = 20; 
+                    ctx.shadowColor = t.color;
+                    ctx.fillStyle = t.color; 
+                    ctx.beginPath(); 
+                    ctx.arc(t.currentX, y, 24, 0, Math.PI*2); 
+                    ctx.fill();
+                    
+                    // 搶答加速噴射特效
+                    if(t.locked) { 
+                        ctx.shadowBlur = 10;
+                        ctx.fillStyle = "#fff"; 
+                        ctx.beginPath(); 
+                        ctx.arc(t.currentX - 35, y, 8, 0, Math.PI*2); 
+                        ctx.fill(); 
+                    }
+                    
+                    // 隊伍文字
+                    ctx.shadowBlur = 0; 
+                    ctx.fillStyle = "#fff"; 
+                    ctx.font = "bold 16px sans-serif"; 
+                    ctx.textAlign = "center";
+                    ctx.fillText("T"+t.id, t.currentX, y+6);
+                }
+            });
+            requestAnimationFrame(animate);
+        }
+        animate();
     }
 
+    /** --- 初始化與工具函數 --- **/
     function startGame() { 
+        // 隨機打亂題庫
         for (let i = quiz.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [quiz[i], quiz[j]] = [quiz[j], quiz[i]];
@@ -237,111 +466,65 @@
         toggleAdmin(); 
     }
 
+    function resetGame() {
+        if(confirm('This will wipe all data. Proceed?')) {
+            localStorage.clear();
+            location.reload();
+        }
+    }
+
+    // 渲染大廳按鈕
+    function renderTeamButtons() {
+        const grid = document.getElementById('team-grid');
+        grid.innerHTML = '';
+        for(let i=1; i<=8; i++) {
+            grid.innerHTML += `<button class="team-select-btn" onclick="joinTeam(${i})">Team ${i}</button>`;
+        }
+    }
+
     function joinTeam(id) { 
         myTeamId = id; 
-        localStorage.setItem('gp_reconnect_id', id);
-        client.publish(`game/${ROOM_ID}/join`, JSON.stringify({tId:id})); 
+        localStorage.setItem('gp_reconnect_id', id); // 存檔供斷線重連
+        client.publish(`game/${ROOM_ID}/join`, JSON.stringify({tId: id})); 
         showPage('player-view'); 
     }
 
-    function toggleAdmin() { const p = document.getElementById('admin-panel'); p.style.display = p.style.display==='block'?'none':'block'; }
-    function showPage(id) { document.querySelectorAll('.page').forEach(p=>p.classList.remove('active-page')); document.getElementById(id).classList.add('active-page'); }
+    function clearTeam() {
+        localStorage.removeItem('gp_reconnect_id');
+        location.reload();
+    }
+
+    function toggleAdmin() { 
+        const p = document.getElementById('admin-panel'); 
+        p.style.display = (p.style.display === 'block') ? 'none' : 'block'; 
+    }
+
+    function showPage(id) { 
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page')); 
+        document.getElementById(id).classList.add('active-page'); 
+    }
+
     function renderQR() { 
         const url = window.location.origin + window.location.pathname + "?role=player";
         new QRCode(document.getElementById('qrcode-area'), { text: url, width: 140, height: 140 }); 
     }
 
+    // --- 程式進入點 ---
     window.onload = () => {
         if (role === 'player') {
             const saved = localStorage.getItem('gp_reconnect_id');
-            if (saved) { myTeamId = parseInt(saved); showPage('player-view'); }
-            else {
+            if (saved) { 
+                myTeamId = parseInt(saved); 
+                showPage('player-view'); 
+            } else {
                 showPage('lobby-view');
-                const grid = document.getElementById('team-grid');
-                for(let i=1; i<=8; i++) grid.innerHTML += `<button onclick="joinTeam(${i})" style="padding:25px; background:#222; color:white; border-radius:12px; font-weight:bold; border:none; font-size:1.4rem; cursor:pointer;">Team ${i}</button>`;
+                renderTeamButtons(); // 確保按鈕被畫出
             }
         } else {
             showPage('console-view');
             initRace();
         }
     };
-
-    /** --- 跑道與賽車繪製核心 --- **/
-    function initRace() {
-        const can = document.getElementById('raceCanvas');
-        const ctx = can.getContext('2d');
-        const resize = () => { can.width = can.parentElement.clientWidth; can.height = can.parentElement.clientHeight; };
-        window.onresize = resize; resize();
-
-        function drawTrack() {
-            const h = can.height / 8;
-            for(let i=0; i<8; i++) {
-                const y = i * h;
-                // 1. 路面 (柏油色)
-                ctx.fillStyle = "#222";
-                ctx.fillRect(0, y, can.width, h);
-                
-                // 2. 路肩 (紅白相間)
-                const shoulderSize = 30;
-                for(let sx=0; sx<can.width; sx+=shoulderSize*2) {
-                    ctx.fillStyle = "#fff"; ctx.fillRect(sx, y, shoulderSize, 4);
-                    ctx.fillStyle = "#ff4757"; ctx.fillRect(sx+shoulderSize, y, shoulderSize, 4);
-                    ctx.fillStyle = "#fff"; ctx.fillRect(sx, y+h-4, shoulderSize, 4);
-                    ctx.fillStyle = "#ff4757"; ctx.fillRect(sx+shoulderSize, y+h-4, shoulderSize, 4);
-                }
-
-                // 3. 起跑線格子旗
-                const startX = 80;
-                const box = 10;
-                for(let r=0; r<h/box; r++) {
-                    ctx.fillStyle = (r%2==0)?"#fff":"#000"; ctx.fillRect(startX, y+(r*box), box, box);
-                    ctx.fillStyle = (r%2!=0)?"#fff":"#000"; ctx.fillRect(startX+box, y+(r*box), box, box);
-                }
-
-                // 4. 路面虛線
-                ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.setLineDash([20, 20]);
-                ctx.beginPath(); ctx.moveTo(startX+40, y+h/2); ctx.lineTo(can.width-120, y+h/2); ctx.stroke();
-                ctx.setLineDash([]);
-
-                // 5. 終點線 (金)
-                const finishX = can.width - 100;
-                ctx.fillStyle = "#ffd700"; ctx.fillRect(finishX, y, 15, h);
-
-                // 6. 跑道編號
-                ctx.fillStyle = "rgba(255,255,255,0.05)"; ctx.font = "bold 60px Arial";
-                ctx.textAlign="left"; ctx.fillText(i+1, 20, y+h-15);
-            }
-        }
-
-        function animate() {
-            ctx.clearRect(0,0,can.width,can.height);
-            drawTrack();
-            teams.forEach((t, i) => {
-                if(t.count > 0) {
-                    const h = can.height / 8;
-                    const trackRange = can.width - 250;
-                    const targetX = 120 + (t.mark * (trackRange/2000)); // 2000分為終點
-                    t.currentX += (targetX - t.currentX) * 0.08;
-                    const y = (i*h) + (h/2);
-                    
-                    // 賽車本體 (發光圓球)
-                    ctx.shadowBlur = 20; ctx.shadowColor = t.color;
-                    ctx.fillStyle = t.color; ctx.beginPath(); ctx.arc(t.currentX, y, 24, 0, 7); ctx.fill();
-                    
-                    // 噴射尾氣 (搶答時顯示)
-                    if (t.locked) {
-                        ctx.shadowBlur = 10; ctx.fillStyle = "#fff";
-                        ctx.beginPath(); ctx.arc(t.currentX - 35, y, 8, 0, 7); ctx.fill();
-                    }
-
-                    ctx.shadowBlur = 0; ctx.fillStyle="#fff"; ctx.font="bold 18px sans-serif"; ctx.textAlign="center";
-                    ctx.fillText("T"+t.id, t.currentX, y+7);
-                }
-            });
-            requestAnimationFrame(animate);
-        }
-        animate();
-    }
 </script>
 </body>
 </html>
