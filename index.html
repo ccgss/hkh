@@ -1,601 +1,1345 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Grand Prix Ultimate - Pure MQTT Edition</title>
-    <!-- 純 MQTT 載入 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <style>
-        :root { 
-            --bg: #0a0a0a; 
-            --blue: #00ffff; 
-            --gold: #ffd700; 
-            --red: #ff4757; 
-            --green: #2ed573; 
-            --panel: rgba(15, 15, 15, 0.98); 
-        }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: white; font-family: "Segoe UI", "Microsoft JhengHei", sans-serif; overflow: hidden; }
-        
-        .page { display: none; width: 100vw; height: 100vh; flex-direction: column; }
-        .active-page { display: flex; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>團隊答題跑步賽</title>
+  <script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1/build/qrcode.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f0f23;
+      --track: #1a1a2e;
+      --runway: #252540;
+      --primary: #00d4ff;
+      --success: #00ff88;
+      --warning: #ffd700;
+      --error: #ff4757;
+      --text: #ffffff;
+      --text-muted: #8892b0;
+    }
 
-        /* --- 大螢幕 & 下方資訊欄 --- */
-        .top-bar { height: 80px; background: #000; display: flex; justify-content: space-between; align-items: center; padding: 0 40px; border-bottom: 4px solid var(--blue); box-shadow: 0 5px 25px rgba(0,255,255,0.3); flex-shrink: 0; z-index: 10; }
-        
-        #main-layout { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-        
-        #playground { flex: 1; position: relative; background: #111; overflow: hidden; }
-        canvas { width: 100%; height: 100%; display: block; }
-        
-        #bottom-panel { width: 100%; background: #111; border-top: 2px solid #333; padding: 15px 25px; box-sizing: border-box; flex-shrink: 0; }
-        #team-list-ui { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        .team-row { background: #1a1a1a; padding: 12px 15px; border-radius: 8px; border-left: 8px solid #444; transition: all 0.3s; box-shadow: 2px 2px 8px rgba(0,0,0,0.5); }
-        .team-row.ready { background: #1a2a1a; }
-        .team-row.locked { animation: pulse-gold 1s infinite alternate; background: #2a2510; }
-        @keyframes pulse-gold { from { box-shadow: 0 0 5px var(--gold); } to { box-shadow: 0 0 20px var(--gold); } }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
 
-        /* --- 管理控制 --- */
-        #admin-tool { position: fixed; top: 15px; right: 20px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; }
-        #gear-btn { width: 50px; height: 50px; background: var(--blue); border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; border: 2px solid #fff; font-size: 24px; box-shadow: 0 0 15px var(--blue); flex-shrink: 0; }
-        #admin-panel { margin-top: 15px; width: 280px; box-sizing: border-box; background: var(--panel); border: 1px solid #444; border-radius: 12px; padding: 20px; display: none; }
+    .container { display: flex; flex-direction: column; min-height: 100vh; }
 
-        /* --- iPad 玩家樣式 --- */
-        .team-select-btn { padding: 25px; background: #222; color: white; border-radius: 12px; border: 2px solid #444; font-size: 1.5rem; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .team-select-btn:active { transform: scale(0.95); border-color: var(--blue); }
-        
-        .timer-wrap { width: 100%; height: 15px; background: #222; }
-        #timer-bar { height: 100%; width: 100%; background: var(--red); transition: width 0.1s linear; }
-        .q-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 30px; text-align: center; }
-        .ans-grid { height: 380px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 20px; }
-        .ans-btn { border: none; border-radius: 15px; font-size: 1.8rem; font-weight: bold; color: white; background: #333; cursor: pointer; transition: 0.2s; }
-        .ans-btn:active { transform: scale(0.95); }
-        .ans-btn.correct { background: var(--green) !important; }
-        .ans-btn.wrong { background: var(--red) !important; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--track);
+      border-bottom: 1px solid rgba(0,212,255,0.2);
+    }
 
-        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.96); display: none; z-index: 2000; justify-content: center; align-items: center; text-align: center; padding: 20px; }
-        #overlay-msg { font-size: 2.2rem; color: var(--gold); font-weight: bold; margin-bottom: 30px;}
-    </style>
+    .logo { font-size: 1.25rem; font-weight: 700; color: var(--primary); }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
+    .header-btn { background: var(--runway); border: 1px solid rgba(0,212,255,0.3); color: var(--primary); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 0.8rem; }
+
+    .status { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; }
+
+    .status-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--error);
+    }
+    .status-dot.connected { background: var(--success); animation: pulse 2s infinite; }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+    .page { display: none; flex:1; }
+    .page.active { display: flex; flex-direction: column; }
+
+    h1 { font-size: 1.5rem; text-align: center; margin-bottom: 8px; }
+    .subtitle { text-align: center; color: var(--text-muted); font-size: 0.875rem; }
+
+    .btn {
+      padding: 14px 20px;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--primary); color: var(--bg); }
+    .btn-secondary { background: transparent; border: 2px solid var(--primary); color: var(--primary); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .input-group { margin-bottom: 12px; }
+    label { display: block; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 4px; }
+
+    input {
+      width: 100%;
+      padding: 14px;
+      font-family: inherit;
+      font-size: 1rem;
+      background: var(--track);
+      border: 2px solid rgba(0,212,255,0.3);
+      border-radius: 8px;
+      color: var(--text);
+      outline: none;
+    }
+    input:focus { border-color: var(--primary); }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-content {
+      background: var(--track);
+      border: 2px solid var(--primary);
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 400px;
+      width: 90%;
+    }
+
+    /* HOST CONSOLE */
+    .host-console { display: none; flex: 1; flex-direction: row; }
+    .host-console.active { display: flex; }
+
+    .left-panel {
+      width: 280px;
+      background: var(--track);
+      border-right: 1px solid rgba(0,212,255,0.2);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .right-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    .host-info-toggle {
+      padding: 8px 12px;
+      background: var(--runway);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .host-info-box { display: none; padding: 16px; border-bottom: 1px solid rgba(0,212,255,0.2); }
+    .host-info-box.show { display: block; }
+
+    #qrContainer { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    #qrCode { background: white; padding: 8px; border-radius: 8px; }
+    .room-code-display { font-size: 3rem; font-weight: 700; letter-spacing: 8px; color: var(--primary); text-align: center; }
+
+    .team-list { flex: 1; overflow-y: auto; padding: 12px; }
+
+    .team-item {
+      background: var(--runway);
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 8px;
+      border-left: 4px solid var(--primary);
+    }
+    .team-item.filled { opacity: 1; }
+    .team-item.waiting { border-left: 4px dashed var(--warning); opacity: 0.7; }
+    .team-item.empty { border-left: 4px dashed var(--text-muted); opacity: 0.5; }
+
+    .team-item-name { font-weight: 700; font-size: 0.9rem; }
+    .team-item-players { font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; }
+    .team-item-status { font-size: 0.65rem; margin-top: 4px; }
+    .team-item-status.waiting { color: var(--warning); }
+    .team-item-status.ready { color: var(--success); }
+
+    .team-count-bar {
+      padding: 12px;
+      background: var(--runway);
+      text-align: center;
+      font-size: 0.875rem;
+    }
+
+    .playground {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .runway {
+      background: var(--runway);
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 64px;
+    }
+
+    .runway-team { font-size: 0.875rem; font-weight: 700; width: 90px; flex-shrink: 0; }
+    .runway-track { flex: 1; height: 36px; background: var(--bg); border-radius: 4px; position: relative; }
+    .runway-steps { position: absolute; inset: 0; display: flex; }
+    .step-marker { flex: 1; border-right: 1px solid var(--runway); }
+    .runway-runner { position: absolute; top: 50%; transform: translateY(-50%); font-size: 1.5rem; transition: left 0.5s ease; }
+    .finish-line {
+      position: absolute; right: 50px; top: 0; bottom: 0; width: 4px;
+      background: repeating-linear-gradient(0deg, var(--warning) 0px, var(--warning) 8px, var(--bg) 8px, var(--bg) 16px);
+    }
+    .runway-info { width: 80px; text-align: right; font-size: 0.875rem; color: var(--text-muted); }
+
+    .question-text { font-size: 1.5rem; }
+    .countdown-timer { font-size: 3rem; font-weight: 700; text-align: center; padding: 20px; }
+
+    /* PLAYER UI */
+    .player-main { flex: 1; padding: 16px; max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; }
+
+    .team-select { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+    .team-select-btn {
+      padding: 20px;
+      font-family: inherit;
+      font-size: 1.25rem;
+      font-weight: 700;
+      background: var(--track);
+      border: 2px solid rgba(0,212,255,0.3);
+      border-radius: 12px;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .team-select-btn:hover { border-color: var(--primary); }
+    .team-select-btn.selected { background: rgba(0,212,255,0.2); border-color: var(--primary); }
+    .team-select-btn.taken { opacity: 0.4; cursor: not-allowed; }
+
+    .team-color {
+      width: 24px; height: 24px; border-radius: 50%; display: inline-block; margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    .waiting-team {
+      background: var(--track);
+      border-radius: 12px;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .waiting-team-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 12px; }
+    .waiting-team-names { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 12px; }
+    .waiting-team-status { color: var(--warning); font-weight: 600; }
+
+    .result-correct { background: rgba(0,255,136,0.2); color: var(--success); padding: 16px; border-radius: 8px; text-align: center; margin-bottom: 12px; font-weight: 700; }
+    .result-wrong { background: rgba(255,71,87,0.2); color: var(--error); padding: 16px; border-radius: 8px; text-align: center; margin-bottom: 12px; }
+
+    .answers { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .answer-btn {
+      padding: 20px;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      background: var(--track);
+      border: 2px solid rgba(0,212,255,0.3);
+      border-radius: 8px;
+      color: var(--text);
+      cursor: pointer;
+      min-height: 80px;
+    }
+    .answer-btn:hover { border-color: var(--primary); }
+    .answer-btn.correct { background: rgba(0,255,136,0.3); border-color: var(--success); }
+    .answer-btn.incorrect { background: rgba(255,71,87,0.3); border-color: var(--error); }
+    .answer-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .answer-letter {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--primary); color: var(--bg); font-weight: 700; margin-right: 8px;
+    }
+
+    .correct-answer { background: rgba(0,255,136,0.2); border: 2px solid var(--success); padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 12px; }
+
+    .waiting-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; text-align: center; }
+    .spinner { width: 60px; height: 60px; border: 4px solid var(--track); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .player-footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--track); padding: 12px 16px; display: flex; justify-content: space-between; }
+
+    .error-msg { background: rgba(255,71,87,0.2); color: var(--error); padding: 12px; border-radius: 8px; text-align: center; }
+
+    .button-group { display: flex; flex-direction: column; gap: 10px; }
+    .big-btn { width: 100%; padding: 20px; font-size: 1.25rem; }
+
+    .host-top-section { display: flex; gap: 20px; padding: 20px; flex-wrap: wrap; justify-content: center; }
+    .host-qr-section { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px; background: var(--track); border-radius: 12px; }
+    .host-qr-hint { color: var(--text-muted); font-size: 0.9rem; text-align: center; }
+    .host-teams-section { flex: 1; min-width: 300px; max-width: 400px; }
+    .host-controls { display: flex; gap: 12px; padding: 0 20px 20px; justify-content: center; }
+    .host-controls .btn { flex: 1; max-width: 300px; }
+
+    @media (max-width: 768px) {
+      .host-console { flex-direction: column; }
+      .host-top-section { flex-direction: column; align-items: center; }
+      .host-controls { flex-direction: column; align-items: center; }
+    }
+  </style>
 </head>
 <body>
-
-    <!-- 管理工具箱 (僅限主控台) -->
-    <div id="admin-tool" style="display:none;">
-        <div id="gear-btn" onclick="toggleAdmin()">⚙️</div>
-        <div id="admin-panel">
-            <div id="qrcode-area" style="background:white; padding:10px; margin-bottom:15px; display:flex; justify-content:center;"></div>
-            <button onclick="startGame()" style="width:100%; padding:12px; background:var(--red); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">START GAME (SHUFFLE)</button>
-            <button onclick="resetGame()" style="width:100%; padding:10px; background:#444; color:white; border:none; border-radius:8px; margin-top:10px; cursor:pointer;">FULL RESET</button>
+  <div class="container">
+    <header>
+      <div class="logo">團隊答題跑步賽 <span id="teamCountBar" style="margin-left:16px;font-size:0.875rem;font-weight:400;color:var(--text-muted);">0/8 隊伍已準備</span></div>
+      <div class="header-actions">
+        <span id="gameTimerDisplay" style="font-size:0.8rem;font-weight:600;opacity:0;margin-right:8px;"></span>
+        <div class="status">
+          <div class="status-dot" id="statusDot"></div>
+          <span id="statusText">離線</span>
         </div>
-    </div>
+        <button class="header-btn" id="headerStartBtn" onclick="startGame()" style="display:none">▶ 開始</button>
+        <button class="header-btn" id="qrModalBtn" onclick="showQRModal()">📱 二維碼</button>
+        <button class="header-btn" id="headerResetBtn" onclick="resetGame()" style="display:none">🔄 重設</button>
+      </div>
+    </header>
 
-    <!-- 大螢幕顯示 (Console / Mirror) -->
-    <div id="console-view" class="page">
-        <header class="top-bar">
-            <h2 style="color:var(--blue); margin:0; letter-spacing: 2px;">🏁 GRAND PRIX CHAMPIONSHIP</h2>
-            <div id="game-status" style="color:var(--gold); font-size:1.4rem; font-weight: bold;">CONNECTING TO NETWORK...</div>
-        </header>
-        <div id="main-layout">
-            <main id="playground"><canvas id="raceCanvas"></canvas></main>
-            <aside id="bottom-panel"><div id="team-list-ui"></div></aside>
+    <main>
+      <div class="page active" id="startPage">
+        <div class="player-main">
+          <h1>團隊答題跑步賽</h1>
+          <p class="subtitle">回答問題,跑向終點!</p>
+          <div class="button-group" style="margin-top:20px;">
+            <button class="btn btn-primary big-btn" onclick="hostGame()">主持人(顯示控制台)</button>
+            <button class="btn btn-secondary big-btn" onclick="showJoin()">加入遊戲</button>
+          </div>
         </div>
-    </div>
+      </div>
 
-    <!-- iPad 玩家選隊大廳 -->
-    <div id="lobby-view" class="page" style="justify-content:center; align-items:center;">
-        <h1 style="color:var(--blue); font-size:3rem; margin-bottom:10px;">STEP 1: SELECT A TEAM</h1>
-        <p style="color:#aaa; font-size:1.2rem; margin-bottom: 40px;">請確保兩名隊員選擇同一個隊伍號碼</p>
-        <div id="team-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:20px; width:90%; max-width: 800px;"></div>
-    </div>
+      <div class="page" id="joinPage">
+        <div class="player-main">
+          <h1>選擇你的 iPAD</h1>
+          <p class="subtitle">2 台 iPad = 1 隊，或單人成隊！選擇隊伍編號。</p>
 
-    <!-- iPad 答題介面 -->
-    <div id="player-view" class="page">
-        <div id="overlay">
-            <div>
-                <div id="overlay-msg"></div>
-                <button onclick="clearTeam()" style="padding: 15px 30px; background: #333; color: #fff; border: 2px solid #555; border-radius: 8px; font-size: 1.2rem; cursor: pointer; font-weight: bold;">重新選隊 / Re-select Team</button>
+          <div class="team-select" id="teamSelect"></div>
+
+          <div id="waitingForTeammate" class="waiting-team" style="display:none;">
+            <div class="waiting-team-title" id="waitingTeamTitle">等待隊友...</div>
+            <div class="waiting-team-names" id="waitingTeamNames"></div>
+            <div class="waiting-team-status">⏳ 等待隊友(第二台 iPad)...</div>
+            <button id="soloBtn" onclick="goSolo()" style="margin-top:16px;padding:12px 32px;font-size:1rem;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;">🏃 單人成隊</button>
+          </div>
+
+          <div id="teammateJoined" class="waiting-team" style="display:none;">
+            <div class="waiting-team-title">✓ 隊伍準備好了!</div>
+            <div class="waiting-team-names" id="teammateNames"></div>
+            <p style="margin-top:16px;">等待主持人開始...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="page" id="hostPage">
+        <div class="host-console active">
+          <div class="host-top-section">
+
+            <div class="host-teams-section">
+              <div class="team-list" id="teamList"></div>
             </div>
+          </div>
+          <div class="host-controls" id="hostControls" style="display:none;">
+            <button class="btn btn-primary big-btn" id="startGameBtn" onclick="startGame()">開始遊戲</button>
+          </div>
+          <div class="right-panel">
+            <div id="leaderboard" style="margin-bottom:8px;"></div>
+            <div class="playground" id="playground"></div>
+          </div>
         </div>
-        <div class="top-bar" style="height: 60px; padding: 0 20px;">
-            <div id="ui-team" style="font-size:1.4rem; font-weight:bold; color:var(--blue);">TEAM --</div>
-            <div id="ui-score" style="font-size:1.4rem; font-weight:bold;">SCORE: 0</div>
-            <button onclick="clearTeam()" style="padding: 8px 15px; background: #ff4757; color: #fff; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; font-weight: bold;">EXIT</button>
+      </div>
+
+      <!-- QR Code Popup Modal -->
+      <div id="qrModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)hideQRModal()">
+        <div class="modal-content">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h2 style="margin:0;">加入遊戲</h2>
+            <button onclick="hideQRModal()" style="background:none;border:none;color:#fff;font-size:1.5rem;cursor:pointer;">✕</button>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:16px;">
+            <canvas id="modalQrCode"></canvas>
+            <div class="room-code-display" id="modalRoomCode" style="font-size:2rem;letter-spacing:6px;"></div>
+            <p style="color:var(--text-muted);font-size:0.875rem;">📱 請用平板掃描 QR Code 加入遊戲</p>
+            <p style="color:var(--text-muted);font-size:0.75rem;">或輸入房間代碼</p>
+          </div>
         </div>
-        <div class="timer-wrap"><div id="timer-bar"></div></div>
-        <div class="q-area"><div id="ui-q" style="font-size:2.2rem; font-weight:bold;">Wait for start...</div></div>
-        <div class="ans-grid">
-            <button class="ans-btn" onclick="sendAns(0)" id="btn-0">A</button>
-            <button class="ans-btn" onclick="sendAns(1)" id="btn-1">B</button>
-            <button class="ans-btn" onclick="sendAns(2)" id="btn-2">C</button>
-            <button class="ans-btn" onclick="sendAns(3)" id="btn-3">D</button>
+      </div>
+
+      <div class="page" id="playerPage">
+        <div class="player-main">
+          <div id="resultMsg" class="result-correct" style="display:none;"></div>
+          <div class="question-display">
+            <p class="question-text" id="playerQuestionText"></p>
+          </div>
+          <div class="countdown-timer" id="playerTimer" style="display:none;"></div>
+<div id="correctAnswer" class="correct-answer" style="display:none;">
+             正確答案: <span id="correctAnswerText"></span>
+           </div>
+          <div class="answers" id="playerAnswers"></div>
         </div>
-    </div>
+<div class="player-footer">
+           <span>第 <span id="myTeamNum">-</span> 隊</span>
+           <span>第 <span id="myStep">0</span>/100 步</span>
+         </div>
+      </div>
 
-<script>
-    const ROOM_ID = "GP_ELITE_RACING_PURE_MQTT";
-    const BROKER = "wss://broker.hivemq.com:8443/mqtt";
-    const urlParams = new URLSearchParams(window.location.search);
-    const role = urlParams.get('role'); // 'player', 'console', or null (Main Admin)
-    
-    // === Canvas 安全限制檢查與智能網路切換 ===
-    const isCanvas = typeof __app_id !== 'undefined' || window.location.hostname.includes('googleusercontent');
-    let client;
-    let msgCallback = null;
+      <div class="page" id="waitingPage">
+        <div class="waiting-screen">
+          <div class="spinner"></div>
+          <p class="subtitle">等待下一題...</p>
+        </div>
+      </div>
 
-    if (isCanvas) {
-        console.log("Canvas 環境偵測：採用 BroadcastChannel 單機模擬以避開 WebSocket 阻擋。");
-        const bc = new BroadcastChannel(ROOM_ID);
-        client = {
-            on: (event, cb) => {
-                if (event === 'connect') setTimeout(cb, 100);
-                if (event === 'message') {
-                    msgCallback = cb;
-                    bc.addEventListener('message', e => cb(e.data.topic, { toString: () => e.data.msg }));
-                }
-            },
-            subscribe: (topic) => {},
-            publish: (topic, msg) => {
-                bc.postMessage({topic, msg});
-                if (msgCallback) {
-                    setTimeout(() => msgCallback(topic, { toString: () => msg }), 10);
-                }
-            }
-        };
-    } else {
-        client = mqtt.connect(BROKER);
-    }
-    // ===========================================
+      <div class="page" id="winnerPage">
+        <div class="player-main">
+          <div style="text-align:center;padding:40px;">
+            <div style="font-size:4rem;">🏆</div>
+            <h1 id="winnerTeam" style="margin-top:20px;">隊伍獲勝!</h1>
+            <p class="subtitle" id="finalScore"></p>
+          </div>
+          <p style="color:var(--text-muted);margin-top:16px;">等待主持人開始新一局...</p>
+        </div>
+      </div>
 
-    // 60 題中英文題庫
-    let quiz = [
-        { q: "太陽系中哪顆行星被稱為「紅色星球」？", a: ["金星", "火星", "木星", "土星"], c: 1 },
-        { q: "請問水的沸點在標準大氣壓下是多少度？", a: ["90°C", "100°C", "110°C", "120°C"], c: 1 },
-        { q: "人體最大的器官是什麼？", a: ["心臟", "肝臟", "皮膚", "肺"], c: 2 },
-        { q: "哪種氣體是植物進行光合作用時吸收的？", a: ["氧氣", "氮氣", "二氧化碳", "氫氣"], c: 2 },
-        { q: "世界上最小的國家是哪一個？", a: ["摩納哥", "梵蒂岡", "馬爾他", "新加坡"], c: 1 },
-        { q: "指南針的 N 極指向哪個方向？", a: ["南方", "西方", "東方", "北方"], c: 3 },
-        { q: "一小時有多少秒？", a: ["360秒", "3600秒", "60秒", "600秒"], c: 1 },
-        { q: "哪種金屬在常溫下是液態的？", a: ["金", "汞", "銀", "銅"], c: 1 },
-        { q: "著名的「蒙娜麗莎」是誰的作品？", a: ["梵谷", "畢卡索", "達文西", "莫內"], c: 2 },
-        { q: "蜘蛛有多少條腿？", a: ["6條", "8條", "10條", "12條"], c: 1 },
-        { q: "哪種鳥類不會飛行？", a: ["老鷹", "企鵝", "鸚鵡", "麻雀"], c: 1 },
-        { q: "三角形的內角和是多少度？", a: ["90度", "180度", "270度", "360度"], c: 1 },
-        { q: "蜜蜂採蜜是為了製造什麼？", a: ["水", "花粉", "蜂蜜", "蜂蠟"], c: 2 },
-        { q: "澳洲的代表性動物是什麼？", a: ["大象", "袋鼠", "獅子", "熊貓"], c: 1 },
-        { q: "一年當中有幾個月有 31 天？", a: ["5個", "6個", "7個", "8個"], c: 2 },
-        { q: "「沙漠之舟」是指哪種動物？", a: ["馬", "駱駝", "驢子", "大象"], c: 1 },
-        { q: "電腦的運算核心縮寫是什麼？", a: ["RAM", "GPU", "CPU", "SSD"], c: 2 },
-        { q: "日本的國花是什麼？", a: ["梅花", "牡丹", "櫻花", "蓮花"], c: 2 },
-        { q: "誰發明了電燈泡？", a: ["特斯拉", "愛迪生", "牛頓", "愛因斯坦"], c: 1 },
-        { q: "「詩仙」是指哪位唐代詩人？", a: ["李白", "杜甫", "王維", "白居易"], c: 0 },
-        { q: "奧運五環中，藍色環代表哪個洲？", a: ["亞洲", "歐洲", "非洲", "美洲"], c: 1 },
-        { q: "聲音在什麼介質中傳播最快？", a: ["空氣", "水", "真空", "固體"], c: 3 },
-        { q: "下列哪一個是可再生能源？", a: ["石油", "煤炭", "太陽能", "天然氣"], c: 2 },
-        { q: "請問 12 乘 12 等於多少？", a: ["124", "144", "164", "184"], c: 1 },
-        { q: "恐龍是在哪個時代滅絕的？", a: ["白堊紀", "侏羅紀", "三疊紀", "寒武紀"], c: 0 },
-        { q: "地圖上的藍色通常代表什麼？", a: ["森林", "沙漠", "海洋", "城市"], c: 2 },
-        { q: "哪種物質是「萬能溶劑」？", a: ["酒精", "汽油", "水", "醋"], c: 2 },
-        { q: "Which word is a synonym of 'HAPPY'?", a: ["Sad", "Angry", "Joyful", "Sleepy"], c: 2 },
-        { q: "Choose the correct past tense of 'GO'.", a: ["Went", "Gone", "Goes", "Going"], c: 0 },
-        { q: "Which is an example of an ADJECTIVE?", a: ["Run", "Beautiful", "Quickly", "Apple"], c: 1 },
-        { q: "What is the opposite of 'FAST'?", a: ["Quick", "Slow", "High", "Deep"], c: 1 },
-        { q: "Finish the sentence: She ____ a teacher.", a: ["am", "is", "are", "be"], c: 1 },
-        { q: "Which word is the odd one out?", a: ["Table", "Chair", "Desk", "Banana"], c: 3 },
-        { q: "What is a baby dog called?", a: ["Kitten", "Cub", "Puppy", "Calf"], c: 2 },
-        { q: "Identify the plural form of 'MOUSE'.", a: ["Mouses", "Mice", "Mices", "Mouse"], c: 1 },
-        { q: "Which month comes after JULY?", a: ["June", "August", "September", "May"], c: 1 },
-        { q: "I ____ breakfast every morning.", a: ["eat", "eats", "eating", "ate"], c: 0 },
-        { q: "Which is a 'FRUIT'?", a: ["Carrot", "Cabbage", "Orange", "Onion"], c: 2 },
-        { q: "What is the collective noun for birds?", a: ["Herd", "Flock", "Pack", "School"], c: 1 },
-        { q: "Which spelling is correct?", a: ["Receve", "Receive", "Recieve", "Receiv"], c: 1 },
-        { q: "What is the comparative of 'GOOD'?", a: ["Gooder", "Best", "Better", "Well"], c: 2 },
-        { q: "A person who flies an airplane is a...?", a: ["Doctor", "Driver", "Pilot", "Chef"], c: 2 },
-        { q: "Choose the correct article: __ apple a day.", a: ["A", "An", "The", "No article"], c: 1 },
-        { q: "Which word describes a 'PERSON'?", a: ["He", "It", "They", "We"], c: 0 },
-        { q: "What do you use to cut paper?", a: ["Knife", "Scissors", "Pencil", "Spoon"], c: 1 },
-        { q: "How do you say '謝謝' in English?", a: ["Please", "Sorry", "Thank you", "Hello"], c: 2 },
-        { q: "Which is a 'VERB'?", a: ["Book", "Jump", "Yellow", "House"], c: 1 },
-        { q: "What is the capital letter of 'b'?", a: ["D", "P", "B", "Q"], c: 2 },
-        { q: "Which animal says 'Meow'?", a: ["Dog", "Cat", "Cow", "Pig"], c: 1 },
-        { q: "Where does a 'FISH' live?", a: ["Forest", "Sky", "Water", "Desert"], c: 2 },
-        { q: "Which number is 'THIRTEEN'?", a: ["3", "30", "13", "31"], c: 2 },
-        { q: "What color is a 'LEMON'?", a: ["Red", "Purple", "Yellow", "Blue"], c: 2 },
-        { q: "Which is a 'WILD ANIMAL'?", a: ["Cat", "Tiger", "Sheep", "Chicken"], c: 1 },
-        { q: "How many days are in a 'WEEK'?", a: ["5", "6", "7", "10"], c: 2 },
-        { q: "Which is NOT a weekday?", a: ["Monday", "Friday", "Sunday", "Tuesday"], c: 2 },
-        { q: "The sun rises in the ____.", a: ["West", "North", "South", "East"], c: 3 },
-        { q: "Which is a 'TRANSPORT'?", a: ["Bed", "Bicycle", "Bread", "Box"], c: 1 }
+      <div class="page" id="errorPage">
+        <div class="player-main">
+          <div class="error-msg" id="errorMsg"></div>
+          <button class="btn btn-primary" onclick="showStart()">返回</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+const QUESTIONS = [
+      { q: "哪顆是紅色星球?", a: ["火星", "金星", "木星", "土星"], c: 0 },
+      { q: "最大的海洋?", a: ["太平洋", "大西洋", "印度洋", "北極海"], c: 0 },
+      { q: "蒙娜麗莎的作者?", a: ["達文西", "米開朗基羅", "拉斐爾", "多納太羅"], c: 0 },
+      { q: "金的元素符號?", a: ["Au", "Ag", "Go", "Gd"], c: 0 },
+      { q: "有幾個洲?", a: ["7", "5", "6", "8"], c: 0 },
+      { q: "法國的首都是?", a: ["巴黎", "倫敦", "柏林", "馬德里"], c: 0 },
+      { q: "植物吸收什麼?", a: ["二氧化碳", "氧氣", "氮氣", "氫氣"], c: 0 },
+      { q: "哈姆雷特的作者?", a: ["莎士比亞", "海明威", "奧斯汀", "狄更斯"], c: 0 },
+      { q: "最硬的物質?", a: ["鑽石", "鐵", "鈦", "石英"], c: 0 },
+      { q: "二戰何時結束?", a: ["1945", "1944", "1946", "1943"], c: 0 },
+      { q: "最小的質數?", a: ["2", "1", "3", "0"], c: 0 },
+      { q: "人口最多國家?", a: ["印度", "中國", "美國", "印尼"], c: 0 },
+      { q: "最大的哺乳類?", a: ["藍鯨", "大象", "長頸鹿", "河馬"], c: 0 },
+      { q: "六邊形有幾邊?", a: ["6", "5", "7", "8"], c: 0 },
+      { q: "最快的動物?", a: ["獵豹", "獅子", "馬", "瞪羚"], c: 0 },
+      { q: "原子序1?", a: ["氫", "氦", "氧", "碳"], c: 0 },
+      { q: "發現盤尼西林的人?", a: ["佛萊明", "居禮", "牛頓", "愛因斯坦"], c: 0 },
+      { q: "最長的河?", a: ["尼羅河", "亞馬遜河", "密西西比河", "長江"], c: 0 },
+      { q: "成年人有幾塊骨頭?", a: ["206", "208", "200", "210"], c: 0 },
+      { q: "日本首都是?", a: ["東京", "京都", "大阪", "首爾"], c: 0 },
+      { q: "第一個登上月球?", a: ["阿姆斯特朗", "奧德林", "加加林", "葛倫"], c: 0 },
+      { q: "最大的沙漠?", a: ["撒哈拉沙漠", "阿拉伯沙漠", "戈壁沙漠", "喀拉哈里沙漠"], c: 0 },
+      { q: "酪梨醬主要原料?", a: ["酪梨", "番茄", "萊姆", "洋蔥"], c: 0 },
+      { q: "吉他有幾根弦?", a: ["6", "4", "5", "7"], c: 0 },
+      { q: "三角形內角和?", a: ["180", "90", "360", "270"], c: 0 },
+      { q: "澳洲首都是?", a: ["坎培拉", "雪梨", "墨爾本", "珀斯"], c: 0 },
+      { q: "美國最大州?", a: ["阿拉斯加", "德州", "加州", "蒙大拿州"], c: 0 },
+      { q: "光速多少(萬)?", a: ["30", "15", "50", "20"], c: 0 },
+      { q: "水幾度沸騰(°C)?", a: ["100", "90", "110", "80"], c: 0 },
+      { q: "最近的恒星?", a: ["太陽", "比鄰星", "南門二", "天狼星"], c: 0 }
     ];
 
-    let teams = Array.from({length: 8}, (_, i) => ({ 
-        id: i+1, count: 0, mark: 0, currentX: 100, qIdx: 0, locked: false, 
-        color: `hsl(${i*45}, 85%, 60%)` 
-    }));
-    
-    let gameActive = false, myTeamId = null, localQIdx = -1, timer = null;
+    const TEAM_COLORS = ['#ff6b6b', '#4ecdc4', '#ffe66d', '#95e1d3', '#f38181', '#aa96da', '#fcbad3', '#a8d8ea'];
+    const RUNNER_EMOJI = '🏃';
+    const TEAM_NAMES = ['第 1 隊', '第 2 隊', '第 3 隊', '第 4 隊', '第 5 隊', '第 6 隊', '第 7 隊', '第 8 隊'];
+    const STEPS_TO_WIN = 100;
+    const QUESTION_TIME = 12;
+    const GAME_TIME = 180; // 3 minutes
 
-    // --- 連線事件綁定 ---
-    client.on('connect', () => {
-        if (!role) { 
-            client.subscribe(`game/${ROOM_ID}/join`);
-            client.subscribe(`game/${ROOM_ID}/leave`);
-            client.subscribe(`game/${ROOM_ID}/submit`);
-            
-            // 主機每 1000ms 廣播全域狀態作為心跳保底
-            setInterval(() => {
-                client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz }));
-            }, 1000);
-            
-            if (isCanvas) {
-                const warn = document.createElement('div');
-                warn.style.cssText = "background: #ff4757; color: white; text-align: center; padding: 10px; font-size: 14px; font-weight: bold; position: absolute; top: 0; left: 0; width: 100%; z-index: 9999;";
-                warn.innerHTML = "⚠️ Canvas 安全限制：目前為單機模式，iPad 無法連線。請在電腦開啟兩個新分頁測試，或匯出 HTML 後執行！";
-                document.body.appendChild(warn);
+    function shuffleQuestions(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    let client = null;
+    let gameId = null;
+    let playerId = null;
+    let teamNum = null;
+    let playerName = "";
+    let isHost = false;
+    let currentQuestion = null;
+    let answered = false;
+    let myTeamStep = 0;
+    let teams = {};
+    let gameActive = false;
+    let questionTimer = null;
+    let autoMoveTimer = null;
+    let gameTimer = null;
+    let gameTimeLeft = GAME_TIME;
+    let playerCountdown = null; // Player 端倒數計時器（全域，防止多個 interval 亂跳）
+
+    const BROKER_URL = "wss://broker.emqx.io:8084/mqtt";
+
+    // 音效系統（Web Audio API）
+    let audioCtx = null;
+    function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    function playSound(type) {
+      if (!audioCtx) return;
+      try {
+        if (type === 'correct') {
+          [523, 659, 784].forEach((freq, i) => {
+            const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+            o.connect(g); g.connect(audioCtx.destination);
+            o.frequency.value = freq; o.type = 'sine';
+            g.gain.setValueAtTime(0.2, audioCtx.currentTime + i*0.1);
+            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i*0.1 + 0.2);
+            o.start(audioCtx.currentTime + i*0.1); o.stop(audioCtx.currentTime + i*0.1 + 0.2);
+          });
+        } else if (type === 'wrong') {
+          const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+          o.connect(g); g.connect(audioCtx.destination);
+          o.frequency.value = 200; o.type = 'sawtooth';
+          g.gain.setValueAtTime(0.15, audioCtx.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+          o.start(audioCtx.currentTime); o.stop(audioCtx.currentTime + 0.3);
+        } else if (type === 'victory') {
+          [523, 659, 784, 1047].forEach((freq, i) => {
+            const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+            o.connect(g); g.connect(audioCtx.destination);
+            o.frequency.value = freq; o.type = 'sine';
+            g.gain.setValueAtTime(0.25, audioCtx.currentTime + i*0.15);
+            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i*0.15 + 0.3);
+            o.start(audioCtx.currentTime + i*0.15); o.stop(audioCtx.currentTime + i*0.15 + 0.3);
+          });
+        }
+      } catch(e) {}
+    }
+
+    function generateId(len = 4) {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      return Array.from({length: len}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    }
+
+    function showPage(id) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function showStart() { showPage('startPage'); }
+    function showJoin() { showPage('joinPage'); }
+
+    function updateStatus(connState) {
+      const dot = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      if (connState === 'connected') { dot.classList.add('connected'); text.textContent = '線上'; }
+      else if (connState === 'connecting') { dot.classList.remove('connected'); text.textContent = '連線中...'; }
+      else { dot.classList.remove('connected'); text.textContent = '離線'; }
+    }
+
+    function connectMQTT(callback) {
+      client = mqtt.connect(BROKER_URL, {
+        clientId: "triviarun_" + generateId(8),
+        clean: true,
+        reconnectPeriod: 3000
+      });
+      updateStatus('connecting');
+      client.on('connect', () => { updateStatus('connected'); callback(); });
+      client.on('error', () => { updateStatus('error'); });
+      client.on('offline', () => { updateStatus('offline'); });
+      client.on('reconnect', () => { updateStatus('connected'); });
+    }
+
+    function publish(topic, payload) {
+      if (client && client.connected) {
+        client.publish(topic, JSON.stringify(payload), { qos: 1, retain: false });
+      }
+    }
+
+    function hostGame() {
+      initAudio();
+      isHost = true;
+      gameId = generateId(4);
+      teams = {};
+
+      connectMQTT(() => {
+        console.log('[Host] 準備訂閱:', gameId + '/#');
+        client.subscribe(gameId + '/#', (err) => {
+          console.log('[Host] 訂閱結果:', err ? '❌ 失敗 ' + err : '✅ 成功');
+          if (err) { showError('建立失敗'); return; }
+          showHostConsole();
+        });
+      });
+    }
+
+    function toggleHostInfo() {
+      const box = document.getElementById('hostInfoBox');
+      const icon = document.getElementById('toggleIcon');
+      box.classList.toggle('show');
+      icon.textContent = box.classList.contains('show') ? '▲' : '▼';
+    }
+
+    function showHostConsole() {
+      QRCode.toCanvas(document.getElementById('modalQrCode'), window.location.href.split('?')[0] + '?room=' + gameId, { width: 280, margin: 2 }, (err) => {});
+      document.getElementById('modalRoomCode').textContent = gameId;
+
+      document.getElementById('headerStartBtn').style.display = 'inline-block';
+      document.getElementById('headerResetBtn').style.display = 'inline-block';
+      document.getElementById('qrModalBtn').style.display = 'inline-block';
+      updateTeamList();
+      updateRunways();
+      showPage('hostPage');
+
+      client.on('message', (topic, msg) => {
+        try {
+          const data = JSON.parse(msg.toString());
+          const t = topic.split('/')[1];
+
+          if (t === 'join') {
+            const tn = data.teamNum;
+            if (tn >= 0 && tn < 8 && !teams[tn]) {
+              teams[tn] = {
+                teamNum: tn,
+                name: TEAM_NAMES[tn],
+                player1: data.playerName,
+                player2: "",
+                step: 0,
+                color: TEAM_COLORS[tn],
+                ready: !!data.solo, // 單人成隊直接 ready
+                solo: !!data.solo,
+                questions: null,
+                qIndex: 0,
+                questionTimer: null
+              };
+            } else if (tn >= 0 && tn < 8 && teams[tn] && !teams[tn].player2 && !teams[tn].solo) {
+              teams[tn].player2 = data.playerName;
+              teams[tn].ready = true;
             }
+            publish(gameId + '/teams', { type: 'update', teams: teams });
+            updateTeamList();
+            updateRunways();
+          } else if (t === 'answer') {
+            const parts = topic.split('/');
+            const answerTeamNum = parts.length >= 3 ? parseInt(parts[2]) : data.teamNum;
+            handleTeamAnswer(answerTeamNum, data.answer);
+          } else if (t === 'progress') {
+            // 忽略舊式 progress（來自其他訊息格式）
+          }
+        } catch (e) { console.log('主持人訊息錯誤:', e); }
+      });
+    }
+
+    function updateTeamList() {
+      const list = document.getElementById('teamList');
+      let html = '';
+      let readyCount = 0;
+      for (let i = 0; i < 8; i++) {
+        const team = teams[i];
+        const currentQ = team && team.currentQuestion ? team.currentQuestion : null;
+        const qText = currentQ ? currentQ.q : '';
+        
+        if (team && team.ready) {
+          html += `<div class="team-item filled" style="border-left-color:${team.color}">
+            <div class="team-item-name" style="color:${team.color}">${team.name}</div>
+            <div class="team-item-players">📱 ${team.player1}${team.solo ? ' 🏃單人' : ' + ' + team.player2}</div>
+            ${qText ? `<div class="team-item-question" style="background:var(--runway);border-radius:6px;padding:6px;margin-top:4px;font-size:0.75rem;color:var(--text-muted);">❓ ${qText}</div>` : ''}
+            <div class="team-item-status ready">✓ 已準備${team.solo ? '（單人）' : ''}</div>
+          </div>`;
+          readyCount++;
+        } else if (team && team.player1) {
+          html += `<div class="team-item waiting" style="border-left-color:${team.color}">
+            <div class="team-item-name" style="color:${team.color}">${team.name}</div>
+            <div class="team-item-players">📱 ${team.player1}</div>
+            <div class="team-item-status waiting">⏳ 等待隊友中...</div>
+          </div>`;
         } else {
-            client.subscribe(`game/${ROOM_ID}/state`);
+          html += `<div class="team-item empty"><div class="team-item-name">${TEAM_NAMES[i]}</div><div class="team-item-status">空位</div></div>`;
         }
-        if (document.getElementById('game-status')) {
-            document.getElementById('game-status').innerText = isCanvas ? "PREVIEW MODE READY" : "WAITING FOR TEAMS...";
-        }
-    });
+      }
+      list.innerHTML = html;
+      document.getElementById('teamCountBar').textContent = `${readyCount}/8 隊伍已準備`;
+      const startBtn = document.getElementById('startGameBtn');
+      startBtn.disabled = readyCount === 0;
+      startBtn.textContent = readyCount > 0 ? '開始遊戲' : '開始';
+    }
 
-    client.on('message', (topic, msg) => {
-        const data = JSON.parse(msg.toString());
+    function startGame() {
+      let readyCount = 0;
+      for (let i = 0; i < 8; i++) {
+        if (teams[i] && teams[i].ready) readyCount++;
+      }
+      if (readyCount === 0) {
+        alert('還沒有隊伍準備好！加入隊伍後按「單人成隊」或等隊友加入。');
+        return;
+      }
+      gameActive = true;
+      document.getElementById('headerStartBtn').style.display = 'none';
+      document.getElementById('headerResetBtn').style.display = 'inline-block';
+      document.getElementById('qrModalBtn').style.display = 'inline-block';
+      // 生成每隊試卷
+      for (let i = 0; i < 8; i++) {
+        if (teams[i] && teams[i].ready) {
+          teams[i].questions = shuffleQuestions(QUESTIONS);
+          teams[i].qIndex = 0;
+        }
+      }
+      // 開始自動前行
+      startAutoMove();
+      // 開始3分鐘倒數
+      startGameTimer();
+      // 向所有已準備的隊伍派發第一題
+      for (let i = 0; i < 8; i++) {
+        if (teams[i] && teams[i].ready) {
+          sendNextQuestion(i);
+        }
+      }
+    }
+
+    function sendNextQuestion(teamNum) {
+      if (!gameActive || !teams[teamNum]) return;
+      const team = teams[teamNum];
+      if (!team.questions || team.qIndex >= team.questions.length) return;
+
+      const q = team.questions[team.qIndex];
+      team.currentQuestion = q;
+      updateTeamList(); // 更新隊伍列表顯示當前問題
+      publish(gameId + '/question/' + teamNum, { question: q, time: QUESTION_TIME });
+
+      if (team.questionTimer) clearInterval(team.questionTimer);
+      team.timeLeft = QUESTION_TIME;
+      team.questionTimer = setInterval(() => {
+        team.timeLeft--;
+        if (team.timeLeft <= 0) {
+          clearInterval(team.questionTimer);
+          // 超時：視為答錯，向後退
+          const penalty = -(Math.floor(Math.random() * 3) + 1);
+          team.step = Math.max(team.step + penalty, 0);
+          // 通知所有 clients 更新跑道
+          publish(gameId + '/progress', {
+            teams: teams, lastTeam: teamNum, steps: Math.abs(penalty),
+            moveMsg: penalty + '', correct: false, showAnswer: true
+          });
+          // 通知該 team 的 player：顯示正確答案（超時）
+          publish(gameId + '/question/' + teamNum, {
+            question: q, time: 0, showAnswer: true, timeout: true
+          });
+          team.currentQuestion = null; // 清走當前問題
+          updateTeamList(); // 更新隊伍列表
+          updateRunways();
+          checkWinner();
+          // 下一題
+          setTimeout(() => { team.qIndex++; sendNextQuestion(teamNum); }, 2000);
+        }
+      }, 1000);
+    }
+
+    function startGameTimer() {
+      gameTimeLeft = GAME_TIME;
+      updateGameTimerDisplay();
+      gameTimer = setInterval(() => {
+        if (gameTimeLeft > 0) {
+          gameTimeLeft--;
+          updateGameTimerDisplay();
+          if (gameTimeLeft <= 0) {
+            endGameByTime();
+          }
+        }
+      }, 1000);
+    }
+
+    function updateGameTimerDisplay() {
+      const el = document.getElementById('gameTimerDisplay');
+      if (!el) return;
+      el.style.opacity = '1';
+      const m = Math.floor(gameTimeLeft / 60);
+      const s = gameTimeLeft % 60;
+      el.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+      if (gameTimeLeft <= 30) el.style.color = 'var(--error)';
+      else if (gameTimeLeft <= 60) el.style.color = 'var(--warning)';
+      else el.style.color = 'var(--success)';
+    }
+
+    function endGameByTime() {
+      if (!gameActive) return;
+      gameActive = false;
+      if (questionTimer) clearInterval(questionTimer);
+      if (autoMoveTimer) clearInterval(autoMoveTimer);
+      if (gameTimer) clearInterval(gameTimer);
+
+      // 找出最高分隊伍
+      let maxStep = 0;
+      let winner = null;
+      for (const t of Object.values(teams)) {
+        if (t && t.ready && t.step > maxStep) {
+          maxStep = t.step;
+          winner = t;
+        }
+      }
+
+      if (winner) {
+        showVictoryModal(winner, `時間到！🏆 冠軍（${maxStep} 步）`);
+        publish(gameId + '/winner', { winner: winner.name, maxStep: maxStep, teams: teams });
+      } else {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.style.display = 'flex';
+        modal.innerHTML = `<div class="modal-content" style="text-align:center;max-width:500px;">
+          <div style="font-size:6rem;margin-bottom:16px;">⏱️</div>
+          <h1 style="color:var(--warning);font-size:2.5rem;margin-bottom:12px;">時間到！</h1>
+          <p style="color:var(--text-muted);margin-bottom:24px;">沒有隊伍到達終點</p>
+          <button class="btn btn-primary" onclick="startNewRound()" style="font-size:1.2rem;padding:16px 32px;">🔄 新一局（同房號）</button>
+        </div>`;
+        document.body.appendChild(modal);
+        publish(gameId + '/winner', { winner: null });
+      }
+    }
+
+    function startAutoMove() {
+      // 每1秒所有隊伍自動前行1格
+      autoMoveTimer = setInterval(() => {
+        if (!gameActive) return;
+        let moved = false;
+        for (let i = 0; i < 8; i++) {
+          if (teams[i] && teams[i].ready && teams[i].step < STEPS_TO_WIN) {
+            teams[i].step = Math.min(teams[i].step + 1, STEPS_TO_WIN);
+            moved = true;
+          }
+        }
+        if (moved) {
+          publish(gameId + '/progress', { teams: teams, autoMove: true });
+          updateRunways();
+          checkWinner();
+        }
+      }, 1000);
+    }
+
+    function handleTeamAnswer(teamNum, answer) {
+      const team = teams[teamNum];
+      if (!team || !team.currentQuestion) return;
+
+      if (team.questionTimer) clearInterval(team.questionTimer);
+
+      const correct = answer === team.currentQuestion.c;
+      let steps = 0;
+      let moveMsg = '';
+
+      if (correct) {
+        // Q3 速度加成制：答啱愈快，獎勵愈多
+        const timeUsed = QUESTION_TIME - (team.timeLeft || 0);
+        steps = Math.max(1, 6 - Math.ceil(timeUsed / 2));
+        moveMsg = '+' + steps + (steps >= 4 ? ' ⚡' : '');
+        team.step = Math.min(team.step + steps, STEPS_TO_WIN);
+        playSound('correct');
+      } else {
+        steps = -(Math.floor(Math.random() * 3) + 1);
+        moveMsg = steps + '';
+        team.step = Math.max(team.step + steps, 0);
+        playSound('wrong');
+      }
+
+      // 通知所有 clients 更新跑道
+      publish(gameId + '/progress', {
+        teams: teams, lastTeam: teamNum, steps: Math.abs(steps),
+        moveMsg: moveMsg, correct: correct, showAnswer: true,
+        playerAnswer: answer, correctAnswer: team.currentQuestion.c
+      });
+      // 通知該 team 的 player：顯示正確答案 + 速度加成
+      publish(gameId + '/question/' + teamNum, {
+        question: team.currentQuestion, time: 0, showAnswer: true, correct: correct,
+        speedBonus: correct ? steps - 1 : 0, stepsGained: correct ? steps : 0
+      });
+      team.currentQuestion = null; // 清走當前問題
+      updateTeamList(); // 更新隊伍列表
+      updateRunways();
+      checkWinner();
+
+      // 派下一題
+      team.qIndex++;
+      setTimeout(() => sendNextQuestion(teamNum), 1500);
+    }
+
+    function nextQuestion() { } // 保留但停用，改為 per-team
+
+    function updateLeaderboard() {
+      const el = document.getElementById('leaderboard');
+      if (!el) return;
+      const ranked = Object.values(teams).filter(t => t && t.ready).sort((a, b) => b.step - a.step);
+      if (ranked.length === 0) { el.innerHTML = ''; return; }
+      el.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">' +
+        ranked.map((t, i) => `<div style="background:${t.color}22;border:2px solid ${t.color};border-radius:8px;padding:4px 10px;font-size:0.8rem;min-width:60px;text-align:center;">
+          <div style="font-weight:bold;color:${t.color};">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#'+(i+1)}</div>
+          <div style="color:var(--text-primary);">${t.step}步</div>
+        </div>`).join('') + '</div>';
+    }
+
+    function showAnswer() {
+      if (!currentQuestion) return;
+      if (questionTimer) clearInterval(questionTimer);
+
+      publish(gameId + '/question', {
+        question: currentQuestion,
+        time: 0,
+        showAnswer: true
+      });
+
+      setTimeout(() => { if (gameActive) nextQuestion(); }, 2000);
+    }
+
+    function updateRunways() {
+      const container = document.getElementById('playground');
+
+      container.innerHTML = [0,1,2,3,4,5,6,7].map(i => {
+        const team = teams[i];
+        const pct = team ? (team.step / STEPS_TO_WIN) * 100 : 0;
+        const name = team ? team.name : `TEAM ${i+1}`;
+        const color = team ? team.color : TEAM_COLORS[i];
+
+        return `<div class="runway" style="border-left:4px solid ${color}">
+          <div class="runway-team" style="color:${color}">${name}</div>
+          <div class="runway-track">
+            ${Array.from({length: 100}, () => '<div class="step-marker"></div>').join('')}
+            <div class="finish-line"></div>
+            <div class="runway-runner" style="left:calc(${pct}% - 20px)">${team ? RUNNER_EMOJI : ''}</div>
+          </div>
+          <div class="runway-info">${team ? team.step + '/100' : '-/100'}</div>
+        </div>`;
+      }).join('');
+
+      updateLeaderboard();
+    }
+
+    function checkWinner() {
+      const winner = Object.values(teams).find(t => t && t.ready && t.step >= STEPS_TO_WIN);
+      if (winner) {
+        gameActive = false;
+        if (questionTimer) clearInterval(questionTimer);
+        if (autoMoveTimer) clearInterval(autoMoveTimer);
         
-        if (topic.endsWith('/state')) {
-            quiz = data.quiz;
-            data.teams.forEach((t, i) => {
-                teams[i].count = t.count;
-                teams[i].mark = t.mark;
-                teams[i].locked = t.locked;
-                teams[i].qIdx = t.qIdx;
-            });
-            gameActive = data.gameActive;
-            
-            if (role === 'console' || !role) updateBigScreen();
-            if (role === 'player' && myTeamId) handlePlayerLogic();
-            
-        } else if (!role) { 
-            // === 只有主機處理寫入邏輯，並「即時廣播」更新狀態 ===
-            const tId = data.tId;
-            if (topic.endsWith('/join')) { 
-                if(teams[tId-1].count < 2) {
-                    teams[tId-1].count++; 
-                    client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz }));
-                }
-            }
-            if (topic.endsWith('/leave')) {
-                if(teams[tId-1].count > 0) {
-                    teams[tId-1].count--;
-                    client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz }));
-                }
-            }
-            if (topic.endsWith('/submit')) {
-                let t = teams[tId-1];
-                if (!t.locked && t.qIdx === data.qIdx) {
-                    t.locked = true;
-                    if (data.isCorrect) t.mark += 100;
-                    client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz }));
-                    setTimeout(() => { 
-                        t.qIdx++; 
-                        t.locked = false; 
-                        client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz }));
-                    }, 1500);
-                }
-            }
-        }
-    });
-
-    /** --- 底部狀態渲染 (Main/Sub) --- **/
-    function updateBigScreen() {
-        const statusEl = document.getElementById('game-status');
-        if (!isCanvas) {
-            statusEl.innerText = gameActive ? "🏁 RACE IN PROGRESS" : "⏳ LOBBY - FORMING TEAMS";
-        }
+        // 顯示勝利彈窗
+        showVictoryModal(winner);
         
-        document.getElementById('team-list-ui').innerHTML = teams.map(t => {
-            let statusText = "EMPTY";
-            let statusColor = "#555";
-
-            if (t.count === 1) { 
-                statusText = "WAITING 👤"; 
-                statusColor = "var(--red)"; 
-            } else if (t.count === 2) { 
-                if(t.locked) { 
-                    statusText = "LOCKED ⚡"; 
-                    statusColor = "var(--gold)"; 
-                } else { 
-                    statusText = "READY ✅"; 
-                    statusColor = "var(--green)"; 
-                }
-            }
-
-            return `
-                <div class="team-row ${t.count>=2 ? 'ready' : ''} ${t.locked ? 'locked' : ''}" style="border-left-color:${t.color}">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <b style="color:${t.color}; font-size:1.1rem;">TEAM ${t.id}</b>
-                        <span style="font-size:1.3rem; font-weight:bold; color:var(--gold);">${t.mark}</span>
-                    </div>
-                    <div style="margin-top:6px; display:flex; justify-content:space-between; font-size:0.85rem; font-weight:bold;">
-                        <span>Q: ${t.qIdx + 1}</span>
-                        <span style="color:${statusColor}">${statusText}</span>
-                    </div>
-                    <div style="width:100%; height:4px; background:#333; margin-top:6px; border-radius:2px; overflow:hidden;">
-                        <div style="width:${(t.count/2)*100}%; background:var(--blue); height:100%; transition:0.3s;"></div>
-                    </div>
-                </div>
-            `;
-        }).join('');
+        publish(gameId + '/winner', { winner: winner.name });
+      }
     }
 
-    /** --- iPad 玩家端邏輯 --- **/
-    function handlePlayerLogic() {
-        const myT = teams[myTeamId-1];
-        const ov = document.getElementById('overlay');
-        const msg = document.getElementById('overlay-msg');
-
-        if (myT.count < 2) { 
-            ov.style.display = 'flex'; 
-            msg.innerText = "STEP 2: WAITING FOR PARTNER (1/2)..."; 
-            return; 
-        }
-        if (!gameActive) { 
-            ov.style.display = 'flex'; 
-            msg.innerText = "STEP 3: WAITING FOR GAME TO START..."; 
-            return; 
-        }
-        if (myT.locked) { 
-            ov.style.display = 'flex'; 
-            msg.innerText = "Team Answered! Locked ⚡"; 
-            clearInterval(timer); 
-            return; 
-        }
-        
-        ov.style.display = 'none';
-        if (localQIdx !== myT.qIdx) { 
-            localQIdx = myT.qIdx; 
-            nextQ(); 
-        }
-        document.getElementById('ui-team').innerText = "TEAM " + myTeamId;
-        document.getElementById('ui-score').innerText = "SCORE: " + myT.mark;
+    function showVictoryModal(winner, customSubtitle) {
+      const modal = document.createElement('div');
+      modal.id = 'victoryModal';
+      modal.className = 'modal-overlay';
+      modal.style.display = 'flex';
+      const subtitle = customSubtitle || '率先到達 100 步!';
+      // 結算排行榜
+      const ranked = Object.values(teams).filter(t => t && t.ready).sort((a, b) => b.step - a.step);
+      const resultsHTML = ranked.map((t, i) => `
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 12px;${i === 0 ? 'background:'+t.color+'22;border-radius:6px;' : ''}">
+          <span style="font-size:1.2rem;">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1)+'.'}</span>
+          <span style="color:${t.color};font-weight:bold;flex:1;text-align:left;">${t.name}</span>
+          <span style="font-weight:bold;">${t.step} 步</span>
+        </div>
+      `).join('');
+      modal.innerHTML = `
+        <div class="modal-content" style="text-align:center;max-width:500px;">
+          <div style="font-size:6rem;margin-bottom:16px;">🏆</div>
+          <h1 style="color:${winner.color};font-size:2.5rem;margin-bottom:12px;">${winner.name}</h1>
+          <h2 style="color:var(--success);margin-bottom:16px;">冠軍!</h2>
+          <p style="color:var(--text-muted);margin-bottom:16px;">${subtitle}</p>
+          <div style="margin-bottom:20px;text-align:left;background:var(--bg-secondary);border-radius:8px;padding:8px;">
+            ${resultsHTML}
+          </div>
+          <button class="btn btn-primary" onclick="startNewRound()" style="font-size:1.2rem;padding:16px 32px;">🔄 新一局（同房號）</button>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      playSound('victory');
     }
 
-    function nextQ() {
-        showPage('player-view');
-        const q = quiz[teams[myTeamId-1].qIdx % quiz.length];
-        document.getElementById('ui-q').innerText = q.q;
-        for(let i=0; i<4; i++) {
-            const b = document.getElementById(`btn-${i}`);
-            b.innerText = q.a[i]; 
-            b.className = "ans-btn"; 
-            b.disabled = false;
-        }
-        let t = 10.0;
-        if (timer) clearInterval(timer);
-        timer = setInterval(() => {
-            t -= 0.1;
-            document.getElementById('timer-bar').style.width = (t*10)+"%";
-            if (t <= 0) { 
-                clearInterval(timer); 
-                sendAns(-1); // 時間到
-            }
-        }, 100);
+    function closeVictoryModal() {
+      const modal = document.getElementById('victoryModal');
+      if (modal) modal.remove();
+      showPage('winnerPage');
     }
 
-    function sendAns(idx) {
-        const q = quiz[teams[myTeamId-1].qIdx % quiz.length];
-        const isCorrect = (idx === q.c);
-        if (idx !== -1) {
-            document.getElementById(`btn-${idx}`).className = "ans-btn " + (isCorrect ? 'correct' : 'wrong');
-            if(!isCorrect) document.getElementById(`btn-${q.c}`).classList.add('correct');
+    function startNewRound() {
+      // 新一局：保留隊伍，重置步數和狀態
+      Object.keys(teams).forEach(teamNum => {
+        if (teams[teamNum]) {
+          teams[teamNum].step = 0;
+          teams[teamNum].progress = 0;
+          teams[teamNum].qIndex = 0;
+          teams[teamNum].currentQuestion = null; // 清走當前問題
+          if (teams[teamNum].questionTimer) clearInterval(teams[teamNum].questionTimer);
         }
-        document.querySelectorAll('.ans-btn').forEach(b => b.disabled = true);
-        
-        client.publish(`game/${ROOM_ID}/submit`, JSON.stringify({ tId: myTeamId, qIdx: localQIdx, isCorrect: isCorrect }));
-    }
-
-    /** --- 跑道與賽車渲染 (Playground) --- **/
-    function initRace() {
-        const can = document.getElementById('raceCanvas');
-        const ctx = can.getContext('2d');
-        const resize = () => { 
-            can.width = can.parentElement.clientWidth; 
-            can.height = can.parentElement.clientHeight; 
-        };
-        window.onresize = resize; 
-        resize();
-
-        function drawTrack() {
-            const h = can.height / 8;
-            for(let i=0; i<8; i++) {
-                const y = i * h;
-                
-                // 柏油路面
-                ctx.fillStyle = "#222"; 
-                ctx.fillRect(0, y, can.width, h);
-                
-                // 紅白路肩
-                const sS = 30; // 肩寬
-                for(let sx=0; sx<can.width; sx+=sS*2) {
-                    ctx.fillStyle = "#fff"; ctx.fillRect(sx, y, sS, 4);
-                    ctx.fillStyle = "#ff4757"; ctx.fillRect(sx+sS, y, sS, 4);
-                    ctx.fillStyle = "#fff"; ctx.fillRect(sx, y+h-4, sS, 4);
-                    ctx.fillStyle = "#ff4757"; ctx.fillRect(sx+sS, y+h-4, sS, 4);
-                }
-
-                // 起點黃線
-                const startLineX = 80;
-                ctx.fillStyle = "#ffd700"; 
-                ctx.fillRect(startLineX, y, 15, h);
-
-                // 終點黑白格子旗
-                const finishLineX = can.width - 100;
-                const box = 10;
-                for(let r=0; r<h/box; r++) {
-                    ctx.fillStyle = (r%2==0) ? "#fff" : "#000"; ctx.fillRect(finishLineX, y+(r*box), box, box);
-                    ctx.fillStyle = (r%2!=0) ? "#fff" : "#000"; ctx.fillRect(finishLineX+box, y+(r*box), box, box);
-                }
-
-                // 中間虛線
-                ctx.strokeStyle = "rgba(255,255,255,0.2)"; 
-                ctx.setLineDash([20, 20]);
-                ctx.beginPath(); 
-                ctx.moveTo(startLineX+30, y+h/2); 
-                ctx.lineTo(finishLineX-20, y+h/2); 
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                // 車道浮水印數字
-                ctx.fillStyle = "rgba(255,255,255,0.06)"; 
-                ctx.font = "bold 60px Arial"; 
-                ctx.textAlign = "left";
-                ctx.fillText(i+1, 20, y+h-15);
-            }
-        }
-
-        function animate() {
-            ctx.clearRect(0, 0, can.width, can.height);
-            drawTrack();
-            
-            teams.forEach((t, i) => {
-                if(t.count > 0) {
-                    const h = can.height / 8;
-                    const startX = 100;
-                    const finishX = can.width - 100;
-                    const trackRange = finishX - startX;
-                    
-                    // 確保不超過終點線
-                    const rawTargetX = startX + (t.mark * (trackRange/2000)); 
-                    const targetX = Math.min(rawTargetX, finishX); 
-                    
-                    t.currentX += (targetX - t.currentX) * 0.08;
-                    const y = (i * h) + (h / 2);
-                    
-                    // 賽車本體
-                    ctx.shadowBlur = 20; 
-                    ctx.shadowColor = t.color;
-                    ctx.fillStyle = t.color; 
-                    ctx.beginPath(); 
-                    ctx.arc(t.currentX, y, 24, 0, Math.PI*2); 
-                    ctx.fill();
-                    
-                    // 搶答加速噴射特效
-                    if(t.locked) { 
-                        ctx.shadowBlur = 10;
-                        ctx.fillStyle = "#fff"; 
-                        ctx.beginPath(); 
-                        ctx.arc(t.currentX - 35, y, 8, 0, Math.PI*2); 
-                        ctx.fill(); 
-                    }
-                    
-                    ctx.shadowBlur = 0; 
-                    ctx.fillStyle = "#fff"; 
-                    ctx.font = "bold 16px sans-serif"; 
-                    ctx.textAlign = "center";
-                    ctx.fillText("T"+t.id, t.currentX, y+6);
-                }
-            });
-            requestAnimationFrame(animate);
-        }
-        animate();
-    }
-
-    /** --- 初始化與 DOM 綁定函數 --- **/
-    function startGame() { 
-        for (let i = quiz.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [quiz[i], quiz[j]] = [quiz[j], quiz[i]];
-        }
-        gameActive = true; 
-        client.publish(`game/${ROOM_ID}/state`, JSON.stringify({ teams, gameActive, quiz }));
-        toggleAdmin(); 
+      });
+      // 重置全局計時器
+      gameTimeLeft = GAME_TIME;
+      if (gameTimer) clearInterval(gameTimer);
+      gameTimer = null;
+      const timerEl = document.getElementById('gameTimerDisplay');
+      if (timerEl) { timerEl.style.opacity = '0'; timerEl.textContent = ''; }
+      // 廣播新一局訊息
+      publish(gameId + '/newround', { type: 'newround' });
+      // 隱藏勝利彈窗
+      const modal = document.getElementById('victoryModal');
+      if (modal) modal.remove();
+      // 重設遊戲狀態
+      gameActive = false;
+      // 顯示開始按鈕
+      document.getElementById('startGameBtn').style.display = '';
+      document.getElementById('startGameBtn').disabled = false;
+      document.getElementById('headerStartBtn').style.display = 'inline-block';
+      document.getElementById('qrContainer').style.display = '';
+      document.getElementById('hostControls').style.display = '';
+      // 更新跑道和隊伍列表
+      updateTeamList();
+      updateRunways();
     }
 
     function resetGame() {
-        if(confirm('This will wipe all data. Proceed?')) {
-            localStorage.clear();
-            location.reload();
-        }
+      teams = {};
+      gameActive = false;
+      if (questionTimer) clearInterval(questionTimer);
+      if (autoMoveTimer) clearInterval(autoMoveTimer);
+      if (gameTimer) clearInterval(gameTimer);
+      gameTimer = null;
+      gameTimeLeft = GAME_TIME;
+      const timerEl = document.getElementById('gameTimerDisplay');
+      if (timerEl) { timerEl.style.opacity = '0'; }
+      // 清除勝利彈窗
+      const victoryModal = document.getElementById('victoryModal');
+      if (victoryModal) victoryModal.remove();
+      publish(gameId + '/teams', { type: 'update', teams: teams });
+      document.getElementById('startGameBtn').style.display = '';
+      document.getElementById('startGameBtn').disabled = true;
+      document.getElementById('qrContainer').style.display = '';
+      document.getElementById('hostControls').style.display = '';
+      updateTeamList();
+      updateRunways();
     }
 
-    function renderTeamButtons() {
-        const grid = document.getElementById('team-grid');
-        grid.innerHTML = '';
-        for(let i=1; i<=8; i++) {
-            grid.innerHTML += `<button class="team-select-btn" onclick="joinTeam(${i})">Team ${i}</button>`;
-        }
+    function showQRModal() {
+      const modal = document.getElementById('qrModal');
+      const qrCanvas = document.getElementById('modalQrCode');
+      document.getElementById('modalRoomCode').textContent = gameId;
+      const url = window.location.href.split('?')[0] + '?room=' + gameId;
+      QRCode.toCanvas(qrCanvas, url, { width: 280, margin: 2 }, (err) => {});
+      modal.style.display = 'flex';
     }
 
-    function joinTeam(id) { 
-        myTeamId = id; 
-        localStorage.setItem('gp_reconnect_id', id);
-        client.publish(`game/${ROOM_ID}/join`, JSON.stringify({tId: id}));
-        showPage('player-view'); 
-        handlePlayerLogic(); 
+    function hideQRModal() {
+      document.getElementById('qrModal').style.display = 'none';
     }
 
-    function clearTeam() {
-        if (myTeamId) {
-            client.publish(`game/${ROOM_ID}/leave`, JSON.stringify({tId: myTeamId}));
-        }
-        localStorage.removeItem('gp_reconnect_id');
-        // 延遲重整以確保退出訊息成功發送
-        setTimeout(() => { location.reload(); }, 100);
+    // PLAYER JOIN FLOW
+    function showTeamSelect() {
+      const container = document.getElementById('teamSelect');
+      container.innerHTML = '';
+
+      for (let i = 0; i < 8; i++) {
+        const btn = document.createElement('button');
+        btn.className = 'team-select-btn';
+        btn.innerHTML = `<span class="team-color" style="background:${TEAM_COLORS[i]}"></span>第 ${i + 1} 隊`;
+        btn.onclick = () => selectTeam(i);
+        btn.dataset.team = i;
+        container.appendChild(btn);
+      }
     }
 
-    // 將二維條碼渲染改到打開面板時執行，避免 display:none 導致的生成錯誤
-    let qrRendered = false;
-    function toggleAdmin() { 
-        const p = document.getElementById('admin-panel'); 
-        p.style.display = (p.style.display === 'block') ? 'none' : 'block'; 
-        if (p.style.display === 'block' && !qrRendered) {
-            renderQR();
-            qrRendered = true;
-        }
-    }
+    function selectTeam(num) {
+      const name = prompt(`請輸入您的名字(第 ${num + 1} 隊):`);
+      if (!name) return;
 
-    function showPage(id) { 
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page')); 
-        document.getElementById(id).classList.add('active-page'); 
-    }
+      teamNum = num;
+      playerName = name.trim();
+      gameId = new URLSearchParams(window.location.search).get('room');
 
-    function renderQR() { 
-        const container = document.getElementById('qrcode-area');
-        container.innerHTML = '';
-        let url = window.location.href.split('?')[0] + "?role=player";
+      if (!gameId) {
+        gameId = prompt("請輸入房間代碼:").trim().toUpperCase();
+      }
+      if (!gameId || gameId.length !== 4) {
+        alert("房間代碼無效");
+        return;
+      }
+
+      playerId = generateId(6);
+      initAudio();
+      connectMQTT(() => {
+        client.subscribe(gameId + '/#', (err) => {
+          if (err) { showError('加入失敗'); return; }
+
+          publish(gameId + '/join', {
+            teamNum: teamNum,
+            playerName: playerName
+          });
+          // 已透過 gameId/# 訂閱所有 topic，唔需要再單獨訂閱
+          // （重複訂閱會導致收到兩次相同訊息，造成計時器/顯示異常）
+
+          showWaitingForTeammate();
+        });
+      });
+
+      // 訊息去重：防止重複處理同一條 MQTT 訊息
+      let lastMsgId = '';
+
+      client.on('message', (topic, msg) => {
         try {
-            new QRCode(container, { text: url, width: 140, height: 140 }); 
-        } catch (e) {
-            console.error("QR Code生成失敗:", e);
-        }
+          const msgStr = msg.toString();
+          const msgId = topic + ':' + msgStr.substring(0, 50);
+          if (msgId === lastMsgId) { console.log('[Player] 去重：跳過重複訊息', topic); return; }
+          lastMsgId = msgId;
+
+          const data = JSON.parse(msgStr);
+          const topicParts = topic.split('/');
+          const subTopic = topicParts[1];
+
+          // 只處理隊伍加入/更新訊息（data.type === 'update'）
+          // 進度訊息（autoMove/progress）帶 data.teams 但唔應該觸發頁面切換！
+          if (data.teams && data.type === 'update') {
+            const myTeam = data.teams[teamNum];
+            if (myTeam) {
+              if (myTeam.player2) {
+                showTeammateJoined(myTeam);
+              } else {
+                showWaitingForTeammate(myTeam);
+              }
+            }
+          }
+          // 處理進度更新（只更新步數，唔切換頁面）
+          if (data.teams && (data.progress || data.autoMove || data.lastTeam !== undefined)) {
+            const myTeam = data.teams[teamNum];
+            if (myTeam) {
+              myTeamStep = myTeam.step;
+              document.getElementById('myStep').textContent = myTeamStep;
+            }
+          }
+
+          // 只處理自己隊伍嘅題目（過濾其他隊嘅題目訊息）
+          if (data.question && subTopic === 'question') {
+            const targetTeam = topicParts.length >= 3 ? parseInt(topicParts[2]) : -1;
+            if (targetTeam !== teamNum && targetTeam !== -1) {
+              console.log('[Player] 跳過其他隊題目：', topic);
+              return;
+            }
+
+            // 如果是 showAnswer 通知，顯示結果
+            if (data.showAnswer) {
+              showPlayerAnswerResult(data.correct, data.timeout, data.speedBonus, data.stepsGained);
+              return;
+            }
+            // 否則是新題目
+            currentQuestion = data.question;
+            answered = false;
+            document.getElementById('resultMsg').style.display = 'none';
+            document.getElementById('correctAnswer').style.display = 'none';
+
+            document.getElementById('playerQuestionText').textContent = data.question.q;
+
+            const timerEl = document.getElementById('playerTimer');
+            timerEl.style.display = 'block';
+            timerEl.textContent = data.time;
+            timerEl.className = 'countdown-timer';
+
+            const letters = ['A', 'B', 'C', 'D'];
+            document.getElementById('playerAnswers').innerHTML = data.question.a.map((ans, i) => `
+              <button class="answer-btn" onclick="submitAnswer(${i})" id="ans${i}">
+                <span class="answer-letter">${letters[i]}</span>
+                ${ans}
+              </button>
+            `).join('');
+
+            // 清走舊計時器，防止多個 interval 同時跑
+            if (playerCountdown) { clearInterval(playerCountdown); playerCountdown = null; }
+
+            let timeLeft = data.time;
+            playerCountdown = setInterval(() => {
+              timeLeft--;
+              timerEl.textContent = timeLeft;
+              if (timeLeft <= 3) timerEl.className = 'countdown-timer danger';
+              else if (timeLeft <= 5) timerEl.className = 'countdown-timer warning';
+              if (timeLeft <= 0) { clearInterval(playerCountdown); playerCountdown = null; }
+            }, 1000);
+
+            showPage('playerPage');
+          }
+
+          if (data.progress && data.teams) {
+            teams = data.teams;
+            updateRunways();
+            checkWinner();
+          }
+
+          if (data.winner) {
+            gameActive = false;
+            // 顯示結算排行榜
+            if (data.teams) {
+              const ranked = Object.values(data.teams).filter(t => t && t.ready).sort((a, b) => b.step - a.step);
+              const finalEl = document.getElementById('finalScore');
+              if (finalEl && ranked.length > 0) {
+                finalEl.textContent = ranked.map((t, i) =>
+                  (i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)) + ' ' + t.name + ' ' + t.step + '步'
+                ).join(' | ');
+              }
+            }
+            document.getElementById('winnerTeam').textContent = `${data.winner} 獲勝!`;
+            showPage('winnerPage');
+            playSound('victory');
+          }
+
+          // 新一局：重置玩家狀態，繼續等待下一局
+          if (data.type === 'newround') {
+            currentQuestion = null;
+            answered = false;
+            gameActive = false;
+            if (playerCountdown) { clearInterval(playerCountdown); playerCountdown = null; }
+            // 重置自己隊伍的步數為 0
+            if (teams[teamNum]) { teams[teamNum].step = 0; }
+            updateRunways();
+            showPage('waitingPage');
+          }
+        } catch (e) { console.log('訊息錯誤:', e); }
+      });
     }
 
-    // --- 程式進入點 ---
-    window.addEventListener('load', () => {
-        // 確保管理員齒輪按鈕顯示
-        if (!role) {
-            document.getElementById('admin-tool').style.display = 'flex';
-        }
+    function goSolo() {
+      // 單人成隊：通知 Host 設為 solo
+      publish(gameId + '/join', {
+        teamNum: teamNum,
+        playerName: playerName,
+        solo: true
+      });
+      // 直接顯示已準備
+      document.getElementById('waitingForTeammate').style.display = 'none';
+      document.getElementById('teammateJoined').style.display = 'block';
+      document.getElementById('teammateNames').textContent = "🏃 " + playerName + "（單人）";
+      document.getElementById('myTeamNum').textContent = teamNum + 1;
+      showPage('waitingPage');
+    }
 
-        if (role === 'player') {
-            const saved = localStorage.getItem('gp_reconnect_id');
-            if (saved) { 
-                myTeamId = parseInt(saved); 
-                showPage('player-view'); 
-                handlePlayerLogic(); 
-            } else {
-                showPage('lobby-view');
-                renderTeamButtons(); 
-            }
+    function showWaitingForTeammate(team) {
+      document.getElementById('teamSelect').style.display = 'grid';
+      document.getElementById('waitingForTeammate').style.display = 'none';
+      document.getElementById('teammateJoined').style.display = 'none';
+
+      const btns = document.querySelectorAll('.team-select-btn');
+      btns.forEach(b => b.classList.add('taken'));
+
+      if (team && team.solo) {
+        // 單人成隊：直接顯示已準備
+        document.getElementById('teamSelect').style.display = 'none';
+        document.getElementById('waitingForTeammate').style.display = 'none';
+        document.getElementById('teammateJoined').style.display = 'block';
+        document.getElementById('teammateNames').textContent = "🏃 " + team.player1 + "（單人）";
+        document.getElementById('myTeamNum').textContent = teamNum + 1;
+        showPage('waitingPage');
+      } else if (team) {
+        document.getElementById('waitingTeamTitle').textContent = team.name;
+        document.getElementById('waitingTeamNames').textContent = "📱 " + team.player1;
+        document.getElementById('waitingForTeammate').style.display = 'block';
+      } else {
+        document.getElementById('teamSelect').innerHTML = `
+          <button class="team-select-btn selected" style="grid-column:span 2;">
+            <span class="team-color" style="background:${TEAM_COLORS[teamNum]}"></span>第 ${teamNum + 1} 隊 - 等待隊友中...
+          </button>
+        `;
+      }
+
+      showPage('joinPage');
+    }
+
+    function showTeammateJoined(team) {
+      document.getElementById('teamSelect').style.display = 'none';
+      document.getElementById('waitingForTeammate').style.display = 'none';
+      document.getElementById('teammateJoined').style.display = 'block';
+
+      if (team && team.solo) {
+        document.getElementById('teammateNames').textContent = "🏃 " + team.player1 + "（單人）";
+      } else {
+        document.getElementById('teammateNames').textContent = "📱 " + team.player1 + " + " + team.player2;
+      }
+      document.getElementById('myTeamNum').textContent = teamNum + 1;
+
+      showPage('waitingPage');
+    }
+
+    function submitAnswer(index) {
+      if (answered || !currentQuestion) return;
+      answered = true;
+
+      document.querySelectorAll('.answer-btn').forEach(btn => btn.disabled = true);
+      document.getElementById('ans' + index).classList.add('selected');
+
+      publish(gameId + '/answer/' + teamNum, {
+        teamNum: teamNum,
+        answer: index
+      });
+
+      // 等待 host 廣播結果，不立即顯示
+      showPage('waitingPage');
+    }
+    
+    function showPlayerAnswerResult(wasCorrect, isTimeout, speedBonus, stepsGained) {
+      // 清走倒數計時器
+      if (playerCountdown) { clearInterval(playerCountdown); playerCountdown = null; }
+
+      // 顯示玩家之前選擇的答案
+      const correct = currentQuestion.c;
+      const selected = document.querySelector('.answer-btn.selected');
+      if (selected) {
+        if (isTimeout) {
+          // 超時：顯示正確答案，不標記選項
+          selected.classList.add('timeout');
+        } else if (selected.classList.contains('correct')) {
+          // 玩家選中正確答案，不需額外處理
         } else {
-            showPage('console-view');
-            updateBigScreen(); 
-            initRace();
+          // 玩家選錯
+          selected.classList.add('incorrect');
         }
-    });
-</script>
+      }
+      // 顯示正確答案
+      document.querySelectorAll('.answer-btn').forEach((btn, i) => {
+        if (i === correct) btn.classList.add('correct');
+        btn.disabled = true;
+      });
+
+      const resultMsg = document.getElementById('resultMsg');
+      if (isTimeout) {
+        resultMsg.textContent = `⏱️ 超時`;
+        resultMsg.className = 'result-wrong';
+      } else if (wasCorrect) {
+        resultMsg.textContent = speedBonus > 0 ? `✅ +${stepsGained} ⚡快答+${speedBonus}` : `✅ +${stepsGained}`;
+        resultMsg.className = 'result-correct';
+      } else {
+        resultMsg.textContent = `❌`;
+        resultMsg.className = 'result-wrong';
+      }
+      resultMsg.style.display = 'block';
+
+      document.getElementById('correctAnswerText').textContent = currentQuestion.a[correct];
+      document.getElementById('correctAnswer').style.display = 'block';
+
+      showPage('playerPage');
+    }
+
+    function showError(msg) {
+      document.getElementById('errorMsg').textContent = msg;
+      showPage('errorPage');
+    }
+
+    window.onload = function() {
+      const params = new URLSearchParams(window.location.search);
+      const room = params.get('room');
+      if (room) {
+        gameId = room.toUpperCase();
+        showJoin();
+        setTimeout(showTeamSelect, 100);
+      } else {
+        showPage('hostPage');
+        hostGame();
+      }
+    }
+  </script>
 </body>
 </html>
